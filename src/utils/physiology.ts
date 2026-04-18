@@ -31,6 +31,40 @@ export const calculateHeartRateZones = (maxHR: number, restingHR: number) => {
   };
 };
 
+/**
+ * Calcula las calorías quemadas usando una fórmula científica (Keytel et al. 2005)
+ * Si el usuario no lleva pulsómetro (HR = 0), realiza una estimación en base al tiempo y peso.
+ */
+export const calculateCalories = (
+  age: number,
+  weightKg: number,
+  timeMinutes: number,
+  currentHR: number,
+  isMale: boolean = true // Usamos la fórmula de hombres por defecto para esta versión
+): number => {
+  if (timeMinutes <= 0) return 0;
+
+  // Si hay pulso real registrado, usar la fórmula científica exacta (para hombres):
+  // Calories = [(-55.0969 + (0.6309 x HR) + (0.1988 x Weight) + (0.2017 x Age)) / 4.184] x 60 x Time
+  if (currentHR > 50) {
+    const term1 = 0.6309 * currentHR;
+    const term2 = 0.1988 * weightKg;
+    const term3 = 0.2017 * age;
+    
+    let calPerMin = (-55.0969 + term1 + term2 + term3) / 4.184;
+    // Evitar valores negativos si los datos de HR son raros
+    if (calPerMin < 0) calPerMin = 0; 
+    
+    return calPerMin * timeMinutes;
+  }
+
+  // Si no hay pulso (HR = 0), estimamos asumiendo una intensidad moderada (MET = 7)
+  // Calories = MET * Weight(kg) * Time(hours)
+  const MET_MODERATE_RUN = 7.0; 
+  const timeHours = timeMinutes / 60;
+  return Math.round(MET_MODERATE_RUN * weightKg * timeHours);
+};
+
 export const checkDailyReadiness = (fatigue: number, jointPain: number) => {
   // Lógica de Bloqueo: Si Dolor > 7, desactivar sesión de impacto
   if (jointPain > 7) {

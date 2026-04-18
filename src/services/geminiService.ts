@@ -36,12 +36,11 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Usamos gemini-1.5-pro o gemini-1.5-flash
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-pro-latest', // Cambiado a 1.5-pro-latest que es más estable en esta versión
       systemInstruction: SYSTEM_PROMPT,
       generationConfig: {
-        responseMimeType: 'application/json', // Intenta forzar la salida en JSON puro
+        responseMimeType: 'application/json',
       }
     });
 

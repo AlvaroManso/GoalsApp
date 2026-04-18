@@ -4,6 +4,8 @@ import * as Location from 'expo-location';
 import { RootStackScreenProps } from '../types/navigation';
 import { getDistance, formatTime, calculatePace } from '../utils/locationHelpers';
 import { healthMock, BiometricData } from '../services/healthMock';
+import { calculateCalories } from '../utils/physiology';
+import { getDB } from '../db/database';
 
 type Props = RootStackScreenProps<'Tracker'>;
 
@@ -15,14 +17,41 @@ export default function TrackerScreen({ navigation }: Props) {
   const [distanceKm, setDistanceKm] = useState(0);
   const [timeSeconds, setTimeSeconds] = useState(0);
   const [lastLocation, setLastLocation] = useState<Location.LocationObjectCoords | null>(null);
+  
+  // Paces
+  const [avgPace, setAvgPace] = useState('0:00');
   const [currentPace, setCurrentPace] = useState('0:00');
   
   // Biometric Data (Mock)
-  const [biometrics, setBiometrics] = useState<BiometricData>({ currentHR: 0, caloriesBurned: 0 });
+  const [biometrics, setBiometrics] = useState<BiometricData>({ currentHR: 0 });
+  const [calories, setCalories] = useState(0);
+
+  // User Profile
+  const [userProfile, setUserProfile] = useState<{ age: number, weight: number } | null>(null);
 
   // Refs for Intervals and Subscribers
   const timerInterval = useRef<NodeJS.Timeout | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+
+  // Cargar el perfil del usuario para usarlo en el cálculo de calorías
+  useEffect(() => {
+    try {
+      const db = getDB();
+      const profile = db.getFirstSync<{ age: number, weight: number }>('SELECT age, weight FROM UserProfile ORDER BY id DESC LIMIT 1');
+      if (profile) setUserProfile(profile);
+    } catch (e) {
+      console.error('Error fetching profile for calories:', e);
+    }
+  }, []);
+
+  // Efecto que calcula las calorías en tiempo real
+  useEffect(() => {
+    if (isTracking && userProfile) {
+      const timeMins = timeSeconds / 60;
+      const cals = calculateCalories(userProfile.age, userProfile.weight, timeMins, biometrics.currentHR);
+      setCalories(cals);
+    }
+  }, [timeSeconds, biometrics.currentHR, userProfile, isTracking]);
 
   useEffect(() => {
     (async () => {
@@ -55,14 +84,16 @@ export default function TrackerScreen({ navigation }: Props) {
       setDistanceKm(0);
       setTimeSeconds(0);
       setLastLocation(null);
+      setAvgPace('0:00');
       setCurrentPace('0:00');
+      setCalories(0);
 
       // 1. Iniciar cronómetro
       timerInterval.current = setInterval(() => {
         setTimeSeconds(prev => prev + 1);
       }, 1000);
 
-      // 2. Iniciar Mock de HealthKit (Ritmo cardíaco y calorías)
+      // 2. Iniciar Mock de HealthKit (Ritmo cardíaco)
       healthMock.startTracking((data) => {
         setBiometrics(data);
       });
@@ -88,10 +119,13 @@ export default function TrackerScreen({ navigation }: Props) {
               
               setDistanceKm(prev => {
                 const newDist = prev + increment;
-                // Calculamos el ritmo cada vez que la distancia cambia
-                setCurrentPace(calculatePace(newDist, timeSeconds));
+                // Ritmo Medio
+                setAvgPace(calculatePace(newDist, timeSeconds));
                 return newDist;
               });
+
+              // Ritmo Actual (Aprox usando solo el último incremento de tiempo que son ~2 seg)
+              setCurrentPace(calculatePace(increment, 2));
             }
             return coords;
           });
@@ -157,22 +191,28 @@ export default function TrackerScreen({ navigation }: Props) {
           <Text className="text-white text-2xl font-bold">{formatTime(timeSeconds)}</Text>
         </View>
 
-        {/* Ritmo */}
+        {/* Ritmo Actual */}
         <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-700">
-          <Text className="text-gray-400 text-sm mb-1">Ritmo Medio</Text>
+          <Text className="text-gray-400 text-sm mb-1">Ritmo Actual</Text>
           <Text className="text-white text-2xl font-bold">{currentPace} <Text className="text-sm font-normal text-gray-500">/km</Text></Text>
         </View>
 
-        {/* FC (Mock) */}
-        <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-red-900/50">
-          <Text className="text-red-400 text-sm mb-1 flex-row items-center">❤ FC Actual</Text>
-          <Text className="text-white text-2xl font-bold">{biometrics.currentHR > 0 ? biometrics.currentHR : '--'} <Text className="text-sm font-normal text-gray-500">ppm</Text></Text>
+        {/* Ritmo Medio */}
+        <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-700">
+          <Text className="text-gray-400 text-sm mb-1">Ritmo Medio</Text>
+          <Text className="text-white text-2xl font-bold">{avgPace} <Text className="text-sm font-normal text-gray-500">/km</Text></Text>
         </View>
 
-        {/* Calorías (Mock) */}
+        {/* Calorías */}
         <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-orange-900/50">
           <Text className="text-orange-400 text-sm mb-1">🔥 Calorías</Text>
-          <Text className="text-white text-2xl font-bold">{Math.floor(biometrics.caloriesBurned)} <Text className="text-sm font-normal text-gray-500">kcal</Text></Text>
+          <Text className="text-white text-2xl font-bold">{Math.floor(calories)} <Text className="text-sm font-normal text-gray-500">kcal</Text></Text>
+        </View>
+
+        {/* FC (Mock) */}
+        <View className="bg-gray-800 rounded-2xl p-4 w-full mb-4 border border-red-900/50">
+          <Text className="text-red-400 text-sm mb-1 flex-row items-center">❤ FC Actual</Text>
+          <Text className="text-white text-2xl font-bold">{biometrics.currentHR > 0 ? biometrics.currentHR : '--'} <Text className="text-sm font-normal text-gray-500">ppm</Text></Text>
         </View>
       </View>
 

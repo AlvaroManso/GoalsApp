@@ -7,30 +7,22 @@
 
 export interface BiometricData {
   currentHR: number;
-  caloriesBurned: number;
 }
 
 class HealthServiceMock {
   private isTracking: boolean = false;
   private timer: NodeJS.Timeout | null = null;
-  private calories: number = 0;
 
-  // Inicia la lectura de datos simulados
+  // Inicia la lectura de datos
   startTracking(onDataUpdate: (data: BiometricData) => void) {
     if (this.isTracking) return;
     this.isTracking = true;
-    this.calories = 0;
 
     this.timer = setInterval(() => {
-      // Simular una Frecuencia Cardíaca entre 120 y 160 (Trote ligero/moderado)
-      const mockHR = Math.floor(Math.random() * (160 - 120 + 1)) + 120;
-      
-      // Simular la quema de ~1 caloría por segundo en actividad
-      this.calories += Math.random() * 0.5 + 0.5;
-
+      // Como solicitaste, no falseamos los datos. Si no hay un reloj conectado (real), devolvemos 0.
+      // Cuando se integre react-native-health real, aquí vendrán las pulsaciones verdaderas.
       onDataUpdate({
-        currentHR: mockHR,
-        caloriesBurned: parseFloat(this.calories.toFixed(1))
+        currentHR: 0,
       });
     }, 2000); // Actualización cada 2 segundos
   }
