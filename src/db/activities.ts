@@ -1,6 +1,6 @@
 import { getDB } from './database';
 
-export interface ActivityRecord {
+export interface Activity {
   id?: number;
   date: string;
   durationMinutes: number;
@@ -8,16 +8,15 @@ export interface ActivityRecord {
   avgPace: string;
   calories: number;
   avgHR: number;
-  routeCoordinates: string; // JSON string of { latitude, longitude }[]
+  routeCoordinates: string; // Array stringified
+  type?: string;
 }
 
-export const saveActivity = (activity: ActivityRecord) => {
+export const saveActivity = (activity: Activity) => {
+  const db = getDB();
   try {
-    const db = getDB();
     db.runSync(
-      `INSERT INTO ActivityHistory 
-      (date, durationMinutes, distanceKm, avgPace, calories, avgHR, routeCoordinates) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      'INSERT INTO ActivityHistory (date, durationMinutes, distanceKm, avgPace, calories, avgHR, routeCoordinates, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         activity.date,
         activity.durationMinutes,
@@ -25,7 +24,8 @@ export const saveActivity = (activity: ActivityRecord) => {
         activity.avgPace,
         activity.calories,
         activity.avgHR,
-        activity.routeCoordinates
+        activity.routeCoordinates,
+        activity.type || 'Running'
       ]
     );
   } catch (error) {

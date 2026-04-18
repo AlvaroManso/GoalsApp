@@ -6,7 +6,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   CheckIn: undefined;
   MainTabs: undefined;
-  Tracker: undefined;
+  Tracker: { activityType?: string } | undefined;
   Profile: undefined;
 };
 

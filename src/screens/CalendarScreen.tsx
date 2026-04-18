@@ -79,6 +79,7 @@ export default function CalendarScreen({ navigation }: Props) {
 
       <Calendar
         current={selectedDate}
+        firstDay={1} // Lunes como primer día de la semana
         onDayPress={(day: any) => {
           setSelectedDate(day.dateString);
           loadData(); // Recalcular marcadores para mover el selected visual
@@ -134,7 +135,17 @@ export default function CalendarScreen({ navigation }: Props) {
             {selectedSession.targetHRZone && (
               <Text className="text-blue-600 dark:text-blue-400 font-semibold mb-2">Zona: {selectedSession.targetHRZone}</Text>
             )}
-            <Text className="text-gray-600 dark:text-gray-400 leading-5">{selectedSession.coachNotes}</Text>
+            <Text className="text-gray-600 dark:text-gray-400 leading-5 mb-4">{selectedSession.coachNotes}</Text>
+            
+            {selectedDate === new Date().toISOString().split('T')[0] && selectedSession.activityType.toLowerCase() !== 'rest' && (
+              <TouchableOpacity 
+                className="bg-indigo-600 py-3 rounded-xl items-center flex-row justify-center mt-2 shadow-sm shadow-indigo-500/30"
+                onPress={() => navigation.navigate('Tracker', { activityType: selectedSession.activityType })}
+              >
+                <Text className="text-white font-bold mr-2">Ir al Tracker</Text>
+                <Text className="text-white">▶</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View className="bg-white dark:bg-gray-800 p-6 rounded-xl items-center justify-center border border-gray-300 dark:border-gray-700 border-dashed">

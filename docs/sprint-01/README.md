@@ -26,13 +26,15 @@
 - **Coach IA y Modificación de Plan (`ChatScreen.tsx`)**: Un chatbot que no solo responde preguntas leyendo las próximas 60 sesiones del plan, sino que además tiene la capacidad de emitir un JSON especial (`PLAN_UPDATE`) que la app interpreta para sobreescribir la base de datos (Ej: "Cambia todos los entrenamientos de fuerza a 5 repeticiones").
 
 ### 5. Fase 4: Tracker y Fisiología
-- **Tracker GPS (`TrackerScreen.tsx`)**: Mide distancia, ritmo medio, ritmo actual, tiempo y dibuja la ruta usando `expo-location`. 
+- **Tracker GPS y Multipropósito (`TrackerScreen.tsx`)**: Mide distancia, ritmo medio, ritmo actual, tiempo y dibuja la ruta usando `expo-location`. Ahora se adapta al tipo de actividad: si es de Fuerza o Descanso, se oculta la distancia y el ritmo, mostrando solo un gran cronómetro central.
 - **Fórmulas Médicas**: Cálculos realistas de gasto calórico basados en Keytel et al. (2005).
 - **Historial (`HistoryScreen.tsx`)**: Lista de entrenamientos guardados con un mini-mapa tipo Strava usando `react-native-maps`.
 
 ### 6. Refinamientos de UI/UX
-- **Light/Dark Mode**: Integración total de la paleta de colores adaptable en toda la aplicación (Dashboard, Calendar, History, Chat, Tracker, Profile).
+- **Light/Dark Mode**: Integración total de la paleta de colores adaptable en toda la aplicación (Dashboard, Calendar, History, Chat, Tracker, Profile) con un Switch manual en el perfil.
 - **Tracker Button**: Botón rojo flotante re-diseñado a un estilo indigo vibrante en el centro del Bottom Tab Navigator.
+- **Gestión de Entrenos Semanales**: El Dashboard muestra ahora los **7 días** de la semana. Los entrenamientos tienen un indicador visual (✓) y se atenúan al completarlos. Además, se incluye un sistema de **Drag and Drop** (`react-native-draggable-flatlist`) para intercambiar libremente los días de entrenamiento manteniendo pulsada una tarjeta.
+- **Navegación Fluida**: Tocar un entrenamiento no completado en el Dashboard o el Calendario abre directamente el Tracker pre-configurado para esa actividad. Soporte de Pull-to-Refresh para recargar datos tras hablar con la IA.
 
 ## 🔧 Tecnologías Usadas
 - **React Native (Expo)**
@@ -41,6 +43,7 @@
 - **Expo SQLite**
 - **Expo Location**
 - **React Native Maps**
+- **React Native Draggable FlatList / Gesture Handler**
 
 ## 📋 Pendiente / Próximos Pasos
 - Sincronización real con Apple HealthKit/Google Fit para FC en vivo (actualmente se usa un Mock).

@@ -11,7 +11,11 @@ export default function ProfileScreen({ navigation }: TabScreenProps<'Profile'>)
   const [height, setHeight] = useState('');
   const [age, setAge] = useState('');
   const [fitnessLevel, setFitnessLevel] = useState('');
-  const { colorScheme, toggleColorScheme } = useColorScheme();
+  const { colorScheme, setColorScheme } = useColorScheme();
+
+  const handleToggleTheme = () => {
+    setColorScheme(colorScheme === 'dark' ? 'light' : 'dark');
+  };
 
   useEffect(() => {
     loadProfile();
@@ -74,7 +78,7 @@ export default function ProfileScreen({ navigation }: TabScreenProps<'Profile'>)
             <Text className="text-gray-800 dark:text-white font-bold text-lg">Modo Oscuro</Text>
             <Switch 
               value={colorScheme === 'dark'} 
-              onValueChange={toggleColorScheme}
+              onValueChange={handleToggleTheme}
               trackColor={{ false: '#d1d5db', true: '#4f46e5' }}
             />
           </View>

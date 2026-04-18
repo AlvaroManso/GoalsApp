@@ -61,6 +61,13 @@ export const initDB = () => {
       // Ignoramos el error si la columna ya existe
     }
 
+    // Migración 3: Añadir type a ActivityHistory si no existe
+    try {
+      db.execSync('ALTER TABLE ActivityHistory ADD COLUMN type TEXT DEFAULT "Running"');
+    } catch (error) {
+      // La columna ya existe
+    }
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);

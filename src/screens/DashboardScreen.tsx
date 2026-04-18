@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ScrollView, RefreshControl } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { TabScreenProps } from '../types/navigation';
 import { getEvents, addEvent, deleteEvent, AppEvent } from '../db/events';
@@ -7,13 +7,16 @@ import { getDB } from '../db/database';
 import { LoadingState, ErrorState, EmptyState } from '../components/UIStates';
 import { generateWeeklyPlan, PlanSession } from '../services/geminiService';
 import { saveApiKey, getApiKey } from '../services/secureStorage';
-import { saveTrainingPlan, getAllTrainingPlan } from '../db/trainingPlan';
+import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+import { saveTrainingPlan, getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
+import { getActivities } from '../db/activities';
 
 type Props = TabScreenProps<'Dashboard'>;
 
 export default function DashboardScreen({ navigation }: Props) {
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [plan, setPlan] = useState<PlanSession[]>([]);
+  const [completedDates, setCompletedDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [isError, setIsError] = useState(false);
@@ -27,12 +30,12 @@ export default function DashboardScreen({ navigation }: Props) {
   const [eventType, setEventType] = useState('10k');
   const [customEventType, setCustomEventType] = useState('');
   const [eventDescription, setEventDescription] = useState('');
-  const [eventPriority, setEventPriority] = useState('A');
   const [eventDate, setEventDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [equipment, setEquipment] = useState<string[]>([]);
   const [userPreferences, setUserPreferences] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const EVENT_OPTIONS = ['10k', 'Media Maratón', 'Maratón', 'Triatlón', 'Ciclismo', 'Trail/Montaña', 'Fuerza', 'Hyrox', 'Otro'];
   const EQUIPMENT_OPTIONS = ['Cinta de Correr', 'Rodillo / Bici Estática', 'Piscina Infinita / Estática', 'Pesas / Gimnasio', 'Pista de Atletismo'];
@@ -42,13 +45,31 @@ export default function DashboardScreen({ navigation }: Props) {
       setIsLoading(true);
       setIsError(false);
       const data = getEvents();
-      setEvents(data);
+      // Ordenar eventos de más próximo a más lejano
+      const sortedData = data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      setEvents(sortedData);
 
       // Cargar plan guardado si existe
       const savedPlan = getAllTrainingPlan();
       if (savedPlan && savedPlan.length > 0) {
-        setPlan(savedPlan);
+        // Filtrar desde hoy en adelante
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const upcomingPlan = savedPlan.filter(p => {
+          const pDate = new Date(p.date!);
+          return pDate.getTime() >= today.getTime();
+        }).slice(0, 7); // Mostrar 7 días
+        setPlan(upcomingPlan);
       }
+
+      // Cargar historial de actividades para ver cuáles están completadas
+      const history = getActivities();
+      const completed = history.map(act => {
+        // Extract YYYY-MM-DD from ISO string
+        return act.date.split('T')[0];
+      });
+      setCompletedDates(completed);
+
     } catch (err) {
       setIsError(true);
     } finally {
@@ -60,10 +81,26 @@ export default function DashboardScreen({ navigation }: Props) {
     loadEvents();
   }, []);
 
+  // Refresh on focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadEvents();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadEvents();
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  }, []);
+
   const handleAddEvent = () => {
     const finalType = eventType === 'Otro' ? customEventType.trim() : eventType;
 
-    if (!finalType || !eventPriority || !eventDate) {
+    if (!finalType || !eventDate) {
       Alert.alert('Error', 'Todos los campos obligatorios deben estar completos');
       return;
     }
@@ -71,7 +108,7 @@ export default function DashboardScreen({ navigation }: Props) {
       addEvent({ 
         type: finalType, 
         description: eventDescription.trim(), 
-        priority: eventPriority, 
+        priority: 'A', // Keeping 'A' for DB compatibility if needed, but not showing it
         date: eventDate.toISOString().split('T')[0] 
       });
       setIsModalVisible(false);
@@ -106,6 +143,31 @@ export default function DashboardScreen({ navigation }: Props) {
     ]);
   };
 
+  const onDragEnd = ({ data }: { data: PlanSession[] }) => {
+    // Actualizar estado local inmediatamente para evitar saltos visuales
+    setPlan(data);
+
+    // Reasignar fechas basado en el nuevo orden (manteniendo la misma secuencia de fechas)
+    // El 'plan' original antes del drag tenía unas fechas. Debemos mantener esas fechas pero intercambiar los objetos.
+    const originalDates = plan.map(p => p.date!);
+    
+    const updates = data.map((item, index) => {
+      const newDate = originalDates[index];
+      return {
+        ...item,
+        date: newDate,
+      };
+    });
+
+    try {
+      updatePlanSessions(updates);
+      // Volver a cargar para asegurar consistencia
+      loadEvents();
+    } catch (e) {
+      console.error('Error reordering plan:', e);
+      Alert.alert('Error', 'No se pudo guardar el nuevo orden de los entrenamientos.');
+    }
+  };
   const handleGeneratePlan = async () => {
     const key = await getApiKey();
     if (!key) {
@@ -182,7 +244,12 @@ export default function DashboardScreen({ navigation }: Props) {
   if (isGeneratingPlan) return <LoadingState message={`🧠 Generando un MACROCICLO completo de 52 SEMANAS...\n(Esto puede tardar hasta 1 minuto)`} />;
 
   return (
-    <ScrollView className="flex-1 bg-gray-50 dark:bg-gray-900 pt-12 px-4">
+    <ScrollView 
+      className="flex-1 bg-gray-50 dark:bg-gray-900 pt-12 px-4"
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4f46e5" />
+      }
+    >
       <View className="flex-row justify-between items-center mb-8 pl-2">
         <Text className="text-3xl text-gray-900 dark:text-white font-bold">Mis Eventos</Text>
         <View className="flex-row items-center">
@@ -205,25 +272,50 @@ export default function DashboardScreen({ navigation }: Props) {
         <EmptyState message="No tienes eventos programados. ¡Añade tu primer evento!" />
       ) : (
         <View className="mb-4">
-          {events.map((item) => (
-            <View key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 flex-row justify-between items-center border border-gray-200 dark:border-gray-700 shadow-sm">
-              <View className="flex-1 mr-4">
-                <Text className="text-gray-900 dark:text-white text-lg font-bold">{item.type}</Text>
-                {item.description ? (
-                  <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">{item.description}</Text>
-                ) : null}
-                <Text className="text-indigo-500 dark:text-indigo-400 font-semibold">{item.date}</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="bg-indigo-50 dark:bg-gray-700 px-3 py-1 rounded-full mr-4 border border-indigo-100 dark:border-transparent">
-                  <Text className="text-indigo-600 dark:text-indigo-400 font-bold">{item.priority}</Text>
+          {events.map((item) => {
+            // Calcular días restantes
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const eventDateObj = new Date(item.date);
+            const diffTime = eventDateObj.getTime() - today.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            let daysText = '';
+            if (diffDays === 0) daysText = '¡Hoy!';
+            else if (diffDays === 1) daysText = 'Mañana';
+            else if (diffDays < 0) daysText = `Hace ${Math.abs(diffDays)} días`;
+            else daysText = `Faltan ${diffDays} días`;
+
+            // Formatear fecha ej: 19-04-2024
+            const dayNum = String(eventDateObj.getDate()).padStart(2, '0');
+            const monthNum = String(eventDateObj.getMonth() + 1).padStart(2, '0');
+            const yearNum = eventDateObj.getFullYear();
+            const formattedDate = `${dayNum}-${monthNum}-${yearNum}`;
+
+            return (
+              <View key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 flex-row justify-between items-center border border-gray-200 dark:border-gray-700 shadow-sm">
+                <View className="flex-1 mr-4">
+                  <Text className="text-gray-900 dark:text-white text-lg font-bold">{item.type}</Text>
+                  {item.description ? (
+                    <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">{item.description}</Text>
+                  ) : null}
+                  <View className="flex-row items-center mt-1">
+                    <Text className="text-indigo-500 dark:text-indigo-400 font-semibold mr-2">{formattedDate}</Text>
+                    <View className={`px-2 py-0.5 rounded-md ${diffDays <= 7 && diffDays >= 0 ? 'bg-red-100 dark:bg-red-900/30' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                      <Text className={`text-xs font-bold ${diffDays <= 7 && diffDays >= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        {daysText}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-                <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)}>
-                  <Text className="text-red-500 text-lg">🗑️</Text>
-                </TouchableOpacity>
+                <View className="flex-row items-center">
+                  <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)} className="p-2">
+                    <Text className="text-red-500 text-lg">🗑️</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -244,26 +336,95 @@ export default function DashboardScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Render AI Plan Result (Preview only 5 days) */}
+      {/* Render AI Plan Result (Preview only 7 days) */}
       {plan.length > 0 && (
         <View className="mb-8 pl-2">
-          <Text className="text-xl text-gray-900 dark:text-white font-bold mb-2">Preview Próximos Entrenos</Text>
-          <Text className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Abre la pestaña Calendario para ver las 52 semanas.</Text>
+          <Text className="text-xl text-gray-900 dark:text-white font-bold mb-2">Semana Actual</Text>
+          <Text className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Abre Calendario para las 52 semanas. Mantén pulsado para reordenar.</Text>
           
-          {plan.slice(0, 5).map((item, index) => (
-            <View key={index} className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 border border-indigo-200 dark:border-indigo-900 shadow-sm">
-              <View className="flex-row justify-between items-center mb-2">
-                <Text className="text-gray-900 dark:text-white font-bold text-lg">{item.date} - {item.activityType}</Text>
-                {item.durationMinutes > 0 && (
-                  <Text className="text-indigo-600 dark:text-indigo-400 font-bold">{item.durationMinutes} min</Text>
-                )}
-              </View>
-              {item.targetHRZone && (
-                <Text className="text-indigo-500 dark:text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
-              )}
-              <Text className="text-gray-600 dark:text-gray-400">{item.coachNotes}</Text>
-            </View>
-          ))}
+          <DraggableFlatList
+            data={plan}
+            keyExtractor={(item) => item.date!}
+            onDragEnd={onDragEnd}
+            scrollEnabled={false} // Disable scroll on Draggable so ScrollView handles it
+            renderItem={({ item, getIndex, drag, isActive }: RenderItemParams<PlanSession>) => {
+              const index = getIndex();
+              
+              // Formatear fecha del plan ej: miércoles-19-04
+              const pDate = new Date(item.date!);
+              const daysArr = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+              const dayName = daysArr[pDate.getDay()];
+              const dayNum = String(pDate.getDate()).padStart(2, '0');
+              const monthNum = String(pDate.getMonth() + 1).padStart(2, '0');
+              const formattedPlanDate = `${dayName}-${dayNum}-${monthNum}`;
+
+              const isRest = item.activityType.toLowerCase() === 'rest';
+              const isCompleted = completedDates.includes(item.date!);
+
+              return (
+                <ScaleDecorator>
+                  <TouchableOpacity 
+                    className={`bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 border shadow-sm ${
+                      isActive ? 'border-indigo-500 dark:border-indigo-400 scale-105 shadow-xl' : 
+                      isCompleted ? 'border-green-200 dark:border-green-900/50 opacity-60' : 
+                      'border-indigo-200 dark:border-indigo-900'
+                    }`}
+                    onPress={() => {
+                      if (!isRest && !isCompleted) {
+                        navigation.navigate('Tracker', { activityType: item.activityType });
+                      } else if (isCompleted) {
+                        Alert.alert('Completado', 'Este entrenamiento ya ha sido completado.');
+                      }
+                    }}
+                    onLongPress={drag}
+                    disabled={isActive}
+                    activeOpacity={isRest || isCompleted ? 1 : 0.7}
+                  >
+                    <View className="flex-row justify-between items-center mb-2">
+                      <View className="flex-row items-center flex-1">
+                        {isCompleted && (
+                          <View className="bg-green-100 dark:bg-green-900/50 rounded-full w-6 h-6 items-center justify-center mr-2">
+                            <Text className="text-green-600 dark:text-green-400 text-xs">✓</Text>
+                          </View>
+                        )}
+                        <Text className={`font-bold text-lg capitalize ${
+                          isRest ? 'text-gray-400 dark:text-gray-500' : 
+                          isCompleted ? 'text-green-600 dark:text-green-400 line-through' : 
+                          'text-gray-900 dark:text-white'
+                        }`}>
+                          {formattedPlanDate} - {item.activityType}
+                        </Text>
+                      </View>
+                      
+                      <View className="flex-row items-center">
+                        {item.durationMinutes > 0 && (
+                          <Text className={`font-bold mr-3 ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                            {item.durationMinutes} min
+                          </Text>
+                        )}
+                        {/* Ícono para indicar que es arrastrable */}
+                        <Text className="text-gray-300 dark:text-gray-600 text-lg">☰</Text>
+                      </View>
+                    </View>
+                    
+                    {!isCompleted && item.targetHRZone && (
+                      <Text className="text-indigo-500 dark:text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
+                    )}
+                    
+                    {!isCompleted && (
+                      <Text className="text-gray-600 dark:text-gray-400 leading-5">{item.coachNotes}</Text>
+                    )}
+                    
+                    {!isRest && !isCompleted && index === 0 && (
+                      <View className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex-row justify-center items-center">
+                        <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">Tocar para iniciar entrenamiento ▶</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                </ScaleDecorator>
+              );
+            }}
+          />
         </View>
       )}
 
@@ -316,22 +477,6 @@ export default function DashboardScreen({ navigation }: Props) {
                 multiline
                 numberOfLines={2}
               />
-
-              <Text className="text-gray-400 mb-2">Prioridad</Text>
-              <View className="flex-row justify-between mb-6">
-                {['A', 'B', 'C'].map(priority => (
-                  <TouchableOpacity 
-                    key={priority}
-                    className={`px-6 py-2 rounded-lg ${eventPriority === priority ? 'bg-blue-600' : 'bg-gray-700'}`}
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setEventPriority(priority);
-                    }}
-                  >
-                    <Text className="text-white font-bold">{priority}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
 
               <Text className="text-gray-400 mb-2">Fecha del Evento</Text>
               <TouchableOpacity 

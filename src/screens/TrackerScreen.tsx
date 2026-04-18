@@ -10,9 +10,13 @@ import { saveActivity } from '../db/activities';
 
 type Props = RootStackScreenProps<'Tracker'>;
 
-export default function TrackerScreen({ navigation }: Props) {
+export default function TrackerScreen({ route, navigation }: Props) {
   const [isTracking, setIsTracking] = useState(false);
   const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
+  
+  // Activity Type
+  const initialActivityType = route.params?.activityType || 'Running';
+  const [activityType, setActivityType] = useState(initialActivityType);
   
   // Tracking Data
   const [distanceKm, setDistanceKm] = useState(0);
@@ -169,7 +173,7 @@ export default function TrackerScreen({ navigation }: Props) {
     // Detener Mock de Salud
     healthMock.stopTracking();
 
-    // Guardar actividad en BD
+      // Guardar actividad en BD
     if (distanceKm > 0.01 || timeSeconds > 30) {
       saveActivity({
         date: new Date().toISOString(),
@@ -178,7 +182,8 @@ export default function TrackerScreen({ navigation }: Props) {
         avgPace: avgPace,
         calories: Math.floor(calories),
         avgHR: biometrics.currentHR, // Mockeado por ahora
-        routeCoordinates: JSON.stringify(routeCoords)
+        routeCoordinates: JSON.stringify(routeCoords),
+        type: activityType
       });
       Alert.alert('¡Buen Trabajo!', 'Tu entrenamiento ha sido guardado en el historial.', [
         { text: 'Ok', onPress: handleExit }
@@ -211,29 +216,45 @@ export default function TrackerScreen({ navigation }: Props) {
       </View>
 
       <View className="bg-white dark:bg-gray-800 rounded-3xl p-8 mb-8 items-center border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-xl dark:shadow-black">
-        <Text className="text-gray-500 dark:text-gray-400 text-lg uppercase tracking-widest mb-2">Distancia</Text>
-        <Text className="text-gray-900 dark:text-white text-6xl font-black mb-1">
-          {distanceKm.toFixed(2)} <Text className="text-2xl text-gray-400 dark:text-gray-500">km</Text>
+        <Text className="text-gray-500 dark:text-gray-400 text-lg uppercase tracking-widest mb-2">
+          {activityType.toLowerCase() === 'strength' || activityType.toLowerCase() === 'rest' ? 'Tiempo' : 'Distancia'}
         </Text>
+        {activityType.toLowerCase() === 'strength' || activityType.toLowerCase() === 'rest' ? (
+          <Text className="text-gray-900 dark:text-white text-6xl font-black mb-1">
+            {formatTime(timeSeconds)}
+          </Text>
+        ) : (
+          <Text className="text-gray-900 dark:text-white text-6xl font-black mb-1">
+            {distanceKm.toFixed(2)} <Text className="text-2xl text-gray-400 dark:text-gray-500">km</Text>
+          </Text>
+        )}
       </View>
 
       <View className="flex-row flex-wrap justify-between">
-        {/* Tiempo */}
+        {/* Tiempo / Actividad */}
         <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-200 dark:border-gray-700 shadow-sm">
-          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">Tiempo</Text>
-          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{formatTime(timeSeconds)}</Text>
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+            {activityType.toLowerCase() === 'strength' || activityType.toLowerCase() === 'rest' ? 'Actividad' : 'Tiempo'}
+          </Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold truncate" numberOfLines={1}>
+            {activityType.toLowerCase() === 'strength' || activityType.toLowerCase() === 'rest' ? activityType : formatTime(timeSeconds)}
+          </Text>
         </View>
 
         {/* Ritmo Actual */}
         <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-200 dark:border-gray-700 shadow-sm">
           <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">Ritmo Actual</Text>
-          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{currentPace} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">/km</Text></Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold">
+            {activityType.toLowerCase() === 'strength' || activityType.toLowerCase() === 'rest' ? '--' : currentPace} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">/km</Text>
+          </Text>
         </View>
 
         {/* Ritmo Medio */}
         <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-200 dark:border-gray-700 shadow-sm">
           <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">Ritmo Medio</Text>
-          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{avgPace} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">/km</Text></Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold">
+            {activityType.toLowerCase() === 'strength' || activityType.toLowerCase() === 'rest' ? '--' : avgPace} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">/km</Text>
+          </Text>
         </View>
 
         {/* Calorías */}
