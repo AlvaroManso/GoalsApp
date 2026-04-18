@@ -140,7 +140,13 @@ export default function CalendarScreen({ navigation }: Props) {
             {selectedDate === new Date().toISOString().split('T')[0] && selectedSession.activityType.toLowerCase() !== 'rest' && (
               <TouchableOpacity 
                 className="bg-indigo-600 py-3 rounded-xl items-center flex-row justify-center mt-2 shadow-sm shadow-indigo-500/30"
-                onPress={() => navigation.navigate('Tracker', { activityType: selectedSession.activityType })}
+                onPress={() => navigation.navigate('Tracker', { 
+                  activityType: selectedSession.activityType,
+                  requiresGPS: selectedSession.requiresGPS,
+                  durationMinutes: selectedSession.durationMinutes,
+                  targetHRZone: selectedSession.targetHRZone,
+                  coachNotes: selectedSession.coachNotes
+                })}
               >
                 <Text className="text-white font-bold mr-2">Ir al Tracker</Text>
                 <Text className="text-white">▶</Text>

@@ -34,10 +34,10 @@ export const saveActivity = (activity: Activity) => {
   }
 };
 
-export const getActivities = (): ActivityRecord[] => {
+export const getActivities = (): Activity[] => {
   try {
     const db = getDB();
-    return db.getAllSync<ActivityRecord>('SELECT * FROM ActivityHistory ORDER BY id DESC');
+    return db.getAllSync<Activity>('SELECT * FROM ActivityHistory ORDER BY id DESC');
   } catch (error) {
     console.error('Error fetching activities:', error);
     return [];

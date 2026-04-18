@@ -32,9 +32,10 @@
 
 ### 6. Refinamientos de UI/UX
 - **Light/Dark Mode**: Integración total de la paleta de colores adaptable en toda la aplicación (Dashboard, Calendar, History, Chat, Tracker, Profile) con un Switch manual en el perfil.
-- **Tracker Button**: Botón rojo flotante re-diseñado a un estilo indigo vibrante en el centro del Bottom Tab Navigator.
-- **Gestión de Entrenos Semanales**: El Dashboard muestra ahora los **7 días** de la semana. Los entrenamientos tienen un indicador visual (✓) y se atenúan al completarlos. Además, se incluye un sistema de **Drag and Drop** (`react-native-draggable-flatlist`) para intercambiar libremente los días de entrenamiento manteniendo pulsada una tarjeta.
+- **Tracker Button**: Botón flotante re-diseñado a un estilo indigo vibrante en el centro del Bottom Tab Navigator.
+- **Gestión de Entrenos Semanales**: El Dashboard muestra ahora los **7 días** de la semana. Los entrenamientos tienen un indicador visual (✓) y se atenúan al completarlos. 
 - **Navegación Fluida**: Tocar un entrenamiento no completado en el Dashboard o el Calendario abre directamente el Tracker pre-configurado para esa actividad. Soporte de Pull-to-Refresh para recargar datos tras hablar con la IA.
+- **Tracker Inteligente (requiresGPS)**: La IA determina si una actividad necesita GPS o no. El Tracker adapta su interfaz dinámicamente, ocultando la distancia y los ritmos para actividades indoor o de fuerza, y ahorrando batería al no solicitar ubicación.
 
 ## 🔧 Tecnologías Usadas
 - **React Native (Expo)**
@@ -43,7 +44,6 @@
 - **Expo SQLite**
 - **Expo Location**
 - **React Native Maps**
-- **React Native Draggable FlatList / Gesture Handler**
 
 ## 📋 Pendiente / Próximos Pasos
 - Sincronización real con Apple HealthKit/Google Fit para FC en vivo (actualmente se usa un Mock).

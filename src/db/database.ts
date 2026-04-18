@@ -39,7 +39,8 @@ export const initDB = () => {
         activityType TEXT,
         durationMinutes INTEGER,
         targetHRZone TEXT,
-        coachNotes TEXT
+        coachNotes TEXT,
+        requiresGPS INTEGER DEFAULT 1
       );
 
       CREATE TABLE IF NOT EXISTS ActivityHistory (
@@ -68,7 +69,21 @@ export const initDB = () => {
       // La columna ya existe
     }
 
-    console.log('Database initialized successfully');
+    // Migración 4: Añadir gender a UserProfile si no existe
+    try {
+      db.execSync('ALTER TABLE UserProfile ADD COLUMN gender TEXT DEFAULT "Prefiero no responder"');
+    } catch (error) {
+      // La columna ya existe
+    }
+
+    // Migración 5: Añadir requiresGPS a TrainingPlan si no existe
+    try {
+      db.execSync('ALTER TABLE TrainingPlan ADD COLUMN requiresGPS INTEGER DEFAULT 1');
+    } catch (error) {
+      // La columna ya existe
+    }
+
+    console.log('Database and tables initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
   }

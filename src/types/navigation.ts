@@ -6,7 +6,13 @@ export type RootStackParamList = {
   Onboarding: undefined;
   CheckIn: undefined;
   MainTabs: undefined;
-  Tracker: { activityType?: string } | undefined;
+  Tracker: { 
+    activityType?: string; 
+    requiresGPS?: boolean;
+    durationMinutes?: number;
+    targetHRZone?: string;
+    coachNotes?: string;
+  } | undefined;
   Profile: undefined;
 };
 

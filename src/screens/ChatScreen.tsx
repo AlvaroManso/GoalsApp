@@ -47,7 +47,8 @@ export default function ChatScreen({ navigation }: Props) {
         activityType: p.activityType,
         durationMinutes: p.durationMinutes,
         targetHRZone: p.targetHRZone,
-        coachNotes: p.coachNotes
+        coachNotes: p.coachNotes,
+        requiresGPS: p.requiresGPS
       })));
 
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -65,9 +66,10 @@ PERO si el usuario PIDE MODIFICAR el plan (ej: "haz que los entrenos de fuerza s
   "type": "PLAN_UPDATE",
   "message": "He modificado tus entrenamientos de fuerza para enfocarnos en 5 repeticiones máximas...",
   "updates": [
-    { "date": "2024-07-15", "activityType": "Strength", "durationMinutes": 60, "targetHRZone": "Z4", "coachNotes": "Fuerza 5x5 al fallo" }
+    { "date": "2024-07-15", "activityType": "Strength", "durationMinutes": 60, "targetHRZone": "Z4", "coachNotes": "Fuerza 5x5 al fallo", "requiresGPS": false }
   ]
 }
+Recuerda añadir siempre "requiresGPS": false para entrenamientos que no requieran medir distancia con GPS al aire libre (ej. Fuerza, Descanso, Piscina, Rodillo).
 Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que coincidan con las fechas del contexto. Si no hay modificaciones, devuelve texto plano normal.`
       });
 

@@ -11,7 +11,7 @@ export const saveTrainingPlan = (plan: PlanSession[]) => {
     // Insertar cada día del plan
     // Para optimizar en SQLite, podríamos usar una transacción o batch, pero runSync es suficiente para ~364 filas en SQLite local
     const stmt = db.prepareSync(
-      'INSERT INTO TrainingPlan (weekNumber, dayOfWeek, date, activityType, durationMinutes, targetHRZone, coachNotes) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO TrainingPlan (weekNumber, dayOfWeek, date, activityType, durationMinutes, targetHRZone, coachNotes, requiresGPS) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
 
     const today = new Date();
@@ -30,7 +30,8 @@ export const saveTrainingPlan = (plan: PlanSession[]) => {
         session.activityType,
         session.durationMinutes,
         session.targetHRZone,
-        session.coachNotes || ''
+        session.coachNotes || '',
+        session.requiresGPS === false ? 0 : 1 // Convert boolean to SQLite INTEGER (0 = false, 1 = true)
       ]);
     }
   } catch (error) {
@@ -42,7 +43,12 @@ export const saveTrainingPlan = (plan: PlanSession[]) => {
 export const getTrainingPlanForDate = (dateString: string): PlanSession | null => {
   const db = getDB();
   try {
-    return db.getFirstSync<PlanSession>('SELECT * FROM TrainingPlan WHERE date = ?', [dateString]);
+    const row = db.getFirstSync<any>('SELECT * FROM TrainingPlan WHERE date = ?', [dateString]);
+    if (!row) return null;
+    return {
+      ...row,
+      requiresGPS: row.requiresGPS === 1
+    };
   } catch (error) {
     console.error('Error fetching plan for date:', error);
     return null;
@@ -52,7 +58,11 @@ export const getTrainingPlanForDate = (dateString: string): PlanSession | null =
 export const getAllTrainingPlan = (): PlanSession[] => {
   const db = getDB();
   try {
-    return db.getAllSync<PlanSession>('SELECT * FROM TrainingPlan ORDER BY id ASC');
+    const rows = db.getAllSync<any>('SELECT * FROM TrainingPlan ORDER BY id ASC');
+    return rows.map(r => ({
+      ...r,
+      requiresGPS: r.requiresGPS === 1
+    }));
   } catch (error) {
     console.error('Error fetching all plan:', error);
     return [];
@@ -74,6 +84,7 @@ export const updatePlanSessions = (updates: Partial<PlanSession> & { date: strin
         if (update.durationMinutes !== undefined) { fields.push('durationMinutes = ?'); values.push(update.durationMinutes); }
         if (update.targetHRZone !== undefined) { fields.push('targetHRZone = ?'); values.push(update.targetHRZone); }
         if (update.coachNotes !== undefined) { fields.push('coachNotes = ?'); values.push(update.coachNotes); }
+        if (update.requiresGPS !== undefined) { fields.push('requiresGPS = ?'); values.push(update.requiresGPS === false ? 0 : 1); }
 
         if (fields.length === 0) return;
 

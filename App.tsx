@@ -1,9 +1,7 @@
-import 'react-native-gesture-handler';
 import './global.css';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDB } from './src/db/database';
 import AppNavigator from './src/navigation/AppNavigator';
 
@@ -28,9 +26,9 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <StatusBar style="light" />
       <AppNavigator />
-    </GestureHandlerRootView>
+    </View>
   );
 }

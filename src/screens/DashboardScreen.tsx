@@ -2,14 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ScrollView, RefreshControl } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { TabScreenProps } from '../types/navigation';
-import { getEvents, addEvent, deleteEvent, AppEvent } from '../db/events';
+import { getEvents, addEvent, updateEvent, deleteEvent, AppEvent } from '../db/events';
 import { getDB } from '../db/database';
 import { LoadingState, ErrorState, EmptyState } from '../components/UIStates';
 import { generateWeeklyPlan, PlanSession } from '../services/geminiService';
 import { saveApiKey, getApiKey } from '../services/secureStorage';
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { saveTrainingPlan, getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
 import { getActivities } from '../db/activities';
+
+import { saveActivity } from '../db/activities';
 
 type Props = TabScreenProps<'Dashboard'>;
 
@@ -19,6 +20,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [completedDates, setCompletedDates] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0); // Progress for the bar
   const [isError, setIsError] = useState(false);
   
   // Modals
@@ -27,6 +29,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [isPreGenModalVisible, setIsPreGenModalVisible] = useState(false);
 
   // Form states
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
   const [eventType, setEventType] = useState('10k');
   const [customEventType, setCustomEventType] = useState('');
   const [eventDescription, setEventDescription] = useState('');
@@ -52,14 +55,21 @@ export default function DashboardScreen({ navigation }: Props) {
       // Cargar plan guardado si existe
       const savedPlan = getAllTrainingPlan();
       if (savedPlan && savedPlan.length > 0) {
-        // Filtrar desde hoy en adelante
+        // Encontrar el lunes de la semana actual
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const upcomingPlan = savedPlan.filter(p => {
+        const day = today.getDay(); // 0 is Sunday, 1 is Monday...
+        const diffToMonday = today.getDate() - day + (day === 0 ? -6 : 1);
+        const currentMonday = new Date(today.setDate(diffToMonday));
+        currentMonday.setHours(0, 0, 0, 0);
+
+        // Obtener 7 días desde el lunes de la semana actual
+        const currentWeekPlan = savedPlan.filter(p => {
           const pDate = new Date(p.date!);
-          return pDate.getTime() >= today.getTime();
-        }).slice(0, 7); // Mostrar 7 días
-        setPlan(upcomingPlan);
+          return pDate.getTime() >= currentMonday.getTime();
+        }).slice(0, 7);
+        
+        setPlan(currentWeekPlan);
       }
 
       // Cargar historial de actividades para ver cuáles están completadas
@@ -97,7 +107,7 @@ export default function DashboardScreen({ navigation }: Props) {
     }, 1000);
   }, []);
 
-  const handleAddEvent = () => {
+  const handleAddOrUpdateEvent = () => {
     const finalType = eventType === 'Otro' ? customEventType.trim() : eventType;
 
     if (!finalType || !eventDate) {
@@ -105,24 +115,55 @@ export default function DashboardScreen({ navigation }: Props) {
       return;
     }
     try {
-      addEvent({ 
-        type: finalType, 
-        description: eventDescription.trim(), 
-        priority: 'A', // Keeping 'A' for DB compatibility if needed, but not showing it
-        date: eventDate.toISOString().split('T')[0] 
-      });
+      if (editingEventId !== null) {
+        updateEvent({
+          id: editingEventId,
+          type: finalType,
+          description: eventDescription.trim(),
+          priority: 'A',
+          date: eventDate.toISOString().split('T')[0]
+        });
+      } else {
+        addEvent({ 
+          type: finalType, 
+          description: eventDescription.trim(), 
+          priority: 'A', 
+          date: eventDate.toISOString().split('T')[0] 
+        });
+      }
+      
       setIsModalVisible(false);
-      
-      // Reset forms
-      setEventType('10k');
-      setCustomEventType('');
-      setEventDescription('');
-      setEventDate(new Date());
-      
+      resetEventForm();
       loadEvents();
     } catch (err) {
       Alert.alert('Error', 'No se pudo guardar el evento');
     }
+  };
+
+  const resetEventForm = () => {
+    setEditingEventId(null);
+    setEventType('10k');
+    setCustomEventType('');
+    setEventDescription('');
+    setEventDate(new Date());
+  };
+
+  const handleEditEvent = (item: AppEvent) => {
+    setEditingEventId(item.id!);
+    
+    // Set type or custom type
+    if (EVENT_OPTIONS.includes(item.type)) {
+      setEventType(item.type);
+      setCustomEventType('');
+    } else {
+      setEventType('Otro');
+      setCustomEventType(item.type);
+    }
+    
+    setEventDescription(item.description || '');
+    // Añadimos T12:00:00 para evitar que el timezone lo desplace al día anterior
+    setEventDate(new Date(item.date + 'T12:00:00Z'));
+    setIsModalVisible(true);
   };
 
   const handleDeleteEvent = (id: number) => {
@@ -190,8 +231,11 @@ export default function DashboardScreen({ navigation }: Props) {
         return;
       }
 
+      setGenerationProgress(0); // Resetear progreso
+
       const generatedPlan = await generateWeeklyPlan({
         age: profile.age,
+        gender: profile.gender || 'Prefiero no responder',
         restingHR: profile.restingHR,
         fatigue: checkin ? checkin.fatigue : 5,
         jointPain: checkin ? checkin.jointPain : 1,
@@ -199,7 +243,10 @@ export default function DashboardScreen({ navigation }: Props) {
         runAvailability: 4, // Harcodeado temporalmente
         strengthAvailability: 2, // Harcodeado temporalmente
         equipment: equipment,
-        userPreferences: userPreferences
+        userPreferences: userPreferences,
+        onProgress: (prog) => {
+          setGenerationProgress(prog);
+        }
       });
 
       saveTrainingPlan(generatedPlan);
@@ -233,15 +280,67 @@ export default function DashboardScreen({ navigation }: Props) {
     }
   };
 
-      const handleToggleEquipment = (item: string) => {
+  const handleToggleEquipment = (item: string) => {
     setEquipment(prev => 
       prev.includes(item) ? prev.filter(e => e !== item) : [...prev, item]
     );
   };
 
+  const handleMarkAsCompleted = (item: PlanSession) => {
+    Alert.alert(
+      'Marcar como Completado',
+      `¿Quieres marcar "${item.activityType}" como completado sin registrar datos de GPS ni tiempo?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sí, Completado',
+          onPress: () => {
+            try {
+              saveActivity({
+                date: new Date(item.date + 'T12:00:00Z').toISOString(),
+                durationMinutes: item.durationMinutes || 0,
+                distanceKm: 0,
+                avgPace: '0:00',
+                calories: 0,
+                avgHR: 0,
+                routeCoordinates: '[]',
+                type: item.activityType
+              });
+              loadEvents(); // Recargar para actualizar el check verde
+            } catch (err) {
+              Alert.alert('Error', 'No se pudo guardar la actividad.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (isLoading) return <LoadingState message="Cargando eventos..." />;
   if (isError) return <ErrorState message="No se pudieron cargar tus eventos. Intenta de nuevo." />;
-  if (isGeneratingPlan) return <LoadingState message={`🧠 Generando un MACROCICLO completo de 52 SEMANAS...\n(Esto puede tardar hasta 1 minuto)`} />;
+  if (isGeneratingPlan) {
+    const weeksGenerated = Math.floor((generationProgress / 100) * 52);
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-50 dark:bg-gray-900 px-6">
+        <Text className="text-xl text-gray-900 dark:text-white font-bold text-center mb-4">
+          🧠 Generando un MACROCICLO completo de 52 SEMANAS...
+        </Text>
+        <Text className="text-gray-500 dark:text-gray-400 text-center mb-8">
+          (Esto puede tardar hasta 1 minuto)
+        </Text>
+
+        <View className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6 overflow-hidden mb-2">
+          <View 
+            className="bg-indigo-600 h-full rounded-full"
+            style={{ width: `${generationProgress}%` }}
+          />
+        </View>
+        <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">
+          {weeksGenerated} / 52 Semanas
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView 
@@ -261,7 +360,10 @@ export default function DashboardScreen({ navigation }: Props) {
           </TouchableOpacity>
           <TouchableOpacity 
             className="bg-indigo-600 rounded-full w-10 h-10 items-center justify-center shadow-md shadow-indigo-500/30"
-            onPress={() => setIsModalVisible(true)}
+            onPress={() => {
+              resetEventForm();
+              setIsModalVisible(true);
+            }}
           >
             <Text className="text-white text-2xl font-bold">+</Text>
           </TouchableOpacity>
@@ -276,7 +378,7 @@ export default function DashboardScreen({ navigation }: Props) {
             // Calcular días restantes
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-            const eventDateObj = new Date(item.date);
+            const eventDateObj = new Date(item.date + 'T12:00:00Z');
             const diffTime = eventDateObj.getTime() - today.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
@@ -309,7 +411,10 @@ export default function DashboardScreen({ navigation }: Props) {
                   </View>
                 </View>
                 <View className="flex-row items-center">
-                  <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)} className="p-2">
+                  <TouchableOpacity onPress={() => handleEditEvent(item)} className="p-2 mr-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-full">
+                    <Text className="text-indigo-500 text-lg">✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)} className="p-2 bg-red-50 dark:bg-red-900/30 rounded-full">
                     <Text className="text-red-500 text-lg">🗑️</Text>
                   </TouchableOpacity>
                 </View>
@@ -340,91 +445,104 @@ export default function DashboardScreen({ navigation }: Props) {
       {plan.length > 0 && (
         <View className="mb-8 pl-2">
           <Text className="text-xl text-gray-900 dark:text-white font-bold mb-2">Semana Actual</Text>
-          <Text className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Abre Calendario para las 52 semanas. Mantén pulsado para reordenar.</Text>
+          <Text className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Abre Calendario para las 52 semanas.</Text>
           
-          <DraggableFlatList
-            data={plan}
-            keyExtractor={(item) => item.date!}
-            onDragEnd={onDragEnd}
-            scrollEnabled={false} // Disable scroll on Draggable so ScrollView handles it
-            renderItem={({ item, getIndex, drag, isActive }: RenderItemParams<PlanSession>) => {
-              const index = getIndex();
-              
-              // Formatear fecha del plan ej: miércoles-19-04
-              const pDate = new Date(item.date!);
-              const daysArr = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-              const dayName = daysArr[pDate.getDay()];
-              const dayNum = String(pDate.getDate()).padStart(2, '0');
-              const monthNum = String(pDate.getMonth() + 1).padStart(2, '0');
-              const formattedPlanDate = `${dayName}-${dayNum}-${monthNum}`;
+          {plan.map((item, index) => {
+            // Formatear fecha del plan ej: miércoles-19-04
+            const pDate = new Date(item.date!);
+            const daysArr = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+            const dayName = daysArr[pDate.getDay()];
+            const dayNum = String(pDate.getDate()).padStart(2, '0');
+            const monthNum = String(pDate.getMonth() + 1).padStart(2, '0');
+            const formattedPlanDate = `${dayName}-${dayNum}-${monthNum}`;
 
-              const isRest = item.activityType.toLowerCase() === 'rest';
-              const isCompleted = completedDates.includes(item.date!);
+            const isRest = item.activityType.toLowerCase() === 'rest';
+            const isCompleted = completedDates.includes(item.date!);
 
-              return (
-                <ScaleDecorator>
-                  <TouchableOpacity 
-                    className={`bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 border shadow-sm ${
-                      isActive ? 'border-indigo-500 dark:border-indigo-400 scale-105 shadow-xl' : 
-                      isCompleted ? 'border-green-200 dark:border-green-900/50 opacity-60' : 
-                      'border-indigo-200 dark:border-indigo-900'
-                    }`}
-                    onPress={() => {
-                      if (!isRest && !isCompleted) {
-                        navigation.navigate('Tracker', { activityType: item.activityType });
-                      } else if (isCompleted) {
-                        Alert.alert('Completado', 'Este entrenamiento ya ha sido completado.');
-                      }
-                    }}
-                    onLongPress={drag}
-                    disabled={isActive}
-                    activeOpacity={isRest || isCompleted ? 1 : 0.7}
-                  >
-                    <View className="flex-row justify-between items-center mb-2">
-                      <View className="flex-row items-center flex-1">
-                        {isCompleted && (
-                          <View className="bg-green-100 dark:bg-green-900/50 rounded-full w-6 h-6 items-center justify-center mr-2">
-                            <Text className="text-green-600 dark:text-green-400 text-xs">✓</Text>
-                          </View>
-                        )}
-                        <Text className={`font-bold text-lg capitalize ${
-                          isRest ? 'text-gray-400 dark:text-gray-500' : 
-                          isCompleted ? 'text-green-600 dark:text-green-400 line-through' : 
-                          'text-gray-900 dark:text-white'
-                        }`}>
-                          {formattedPlanDate} - {item.activityType}
-                        </Text>
-                      </View>
-                      
-                      <View className="flex-row items-center">
-                        {item.durationMinutes > 0 && (
-                          <Text className={`font-bold mr-3 ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-indigo-600 dark:text-indigo-400'}`}>
-                            {item.durationMinutes} min
-                          </Text>
-                        )}
-                        {/* Ícono para indicar que es arrastrable */}
-                        <Text className="text-gray-300 dark:text-gray-600 text-lg">☰</Text>
-                      </View>
-                    </View>
-                    
-                    {!isCompleted && item.targetHRZone && (
-                      <Text className="text-indigo-500 dark:text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
-                    )}
-                    
-                    {!isCompleted && (
-                      <Text className="text-gray-600 dark:text-gray-400 leading-5">{item.coachNotes}</Text>
-                    )}
-                    
-                    {!isRest && !isCompleted && index === 0 && (
-                      <View className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex-row justify-center items-center">
-                        <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">Tocar para iniciar entrenamiento ▶</Text>
+            return (
+              <TouchableOpacity 
+                key={item.date!} 
+                className={`bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 border shadow-sm ${
+                  isCompleted ? 'border-green-200 dark:border-green-900/50 opacity-60' : 
+                  'border-indigo-200 dark:border-indigo-900'
+                }`}
+                onPress={() => {
+                  if (!isRest && !isCompleted && index !== 0) { // Index 0 has specific buttons now
+                    navigation.navigate('Tracker', { 
+                      activityType: item.activityType,
+                      requiresGPS: item.requiresGPS,
+                      durationMinutes: item.durationMinutes,
+                      targetHRZone: item.targetHRZone,
+                      coachNotes: item.coachNotes
+                    });
+                  } else if (isCompleted) {
+                    Alert.alert('Completado', 'Este entrenamiento ya ha sido completado.');
+                  }
+                }}
+                activeOpacity={isRest || isCompleted ? 1 : 0.7}
+              >
+                <View className="flex-row justify-between items-center mb-2">
+                  <View className="flex-row items-center flex-1">
+                    {isCompleted && (
+                      <View className="bg-green-100 dark:bg-green-900/50 rounded-full w-6 h-6 items-center justify-center mr-2">
+                        <Text className="text-green-600 dark:text-green-400 text-xs">✓</Text>
                       </View>
                     )}
-                  </TouchableOpacity>
-                </ScaleDecorator>
-              );
-            }}
-          />
+                    <Text className={`font-bold text-lg capitalize ${
+                      isRest ? 'text-gray-400 dark:text-gray-500' : 
+                      isCompleted ? 'text-green-600 dark:text-green-400 line-through' : 
+                      'text-gray-900 dark:text-white'
+                    }`}>
+                      {formattedPlanDate} - {item.activityType}
+                    </Text>
+                  </View>
+                  
+                  <View className="flex-row items-center">
+                    {item.durationMinutes > 0 && (
+                      <Text className={`font-bold ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                        {item.durationMinutes} min
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                
+                {!isCompleted && item.targetHRZone && (
+                  <Text className="text-indigo-500 dark:text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
+                )}
+                
+                {!isCompleted && (
+                  <Text className="text-gray-600 dark:text-gray-400 leading-5">{item.coachNotes}</Text>
+                )}
+                
+                {!isRest && !isCompleted && index === 0 && (
+                  <View className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex-row justify-between items-center">
+                    <TouchableOpacity 
+                      className="bg-indigo-600/10 dark:bg-indigo-900/30 px-3 py-2 rounded-lg"
+                      onPress={() => {
+                        navigation.navigate('Tracker', { 
+                          activityType: item.activityType,
+                          requiresGPS: item.requiresGPS,
+                          durationMinutes: item.durationMinutes,
+                          targetHRZone: item.targetHRZone,
+                          coachNotes: item.coachNotes
+                        });
+                      }}
+                    >
+                      <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">Iniciar Tracker ▶</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      className="bg-green-600/10 dark:bg-green-900/30 px-3 py-2 rounded-lg flex-row items-center"
+                      onPress={() => handleMarkAsCompleted(item)}
+                    >
+                      <Text className="text-green-600 dark:text-green-400 font-bold text-sm mr-1">Completado</Text>
+                      <Text className="text-green-600 dark:text-green-400 text-sm">✓</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
@@ -436,7 +554,9 @@ export default function DashboardScreen({ navigation }: Props) {
             className="flex-1 justify-end bg-black/80"
           >
             <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
-              <Text className="text-2xl text-white font-bold mb-6">Nuevo Evento</Text>
+              <Text className="text-2xl text-white font-bold mb-6">
+                {editingEventId ? 'Editar Evento' : 'Nuevo Evento'}
+              </Text>
               
               <Text className="text-gray-400 mb-2">Tipo de Evento</Text>
               <View className="flex-row flex-wrap mb-4">
@@ -517,7 +637,7 @@ export default function DashboardScreen({ navigation }: Props) {
                   className="bg-blue-600 py-4 rounded-xl flex-1 ml-2 items-center"
                   onPress={() => {
                     Keyboard.dismiss();
-                    handleAddEvent();
+                    handleAddOrUpdateEvent();
                   }}
                 >
                   <Text className="text-white font-bold">Guardar</Text>

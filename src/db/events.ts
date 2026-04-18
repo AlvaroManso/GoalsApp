@@ -31,6 +31,20 @@ export const addEvent = (event: AppEvent): void => {
   }
 };
 
+export const updateEvent = (event: AppEvent): void => {
+  if (!event.id) return;
+  try {
+    const db = getDB();
+    db.runSync(
+      'UPDATE Events SET type = ?, description = ?, priority = ?, date = ? WHERE id = ?',
+      [event.type, event.description || null, event.priority, event.date, event.id]
+    );
+  } catch (error) {
+    console.error('Error updating event:', error);
+    throw error;
+  }
+};
+
 export const deleteEvent = (id: number): void => {
   try {
     const db = getDB();

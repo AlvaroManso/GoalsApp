@@ -11,6 +11,7 @@ export default function ProfileScreen({ navigation }: TabScreenProps<'Profile'>)
   const [height, setHeight] = useState('');
   const [age, setAge] = useState('');
   const [fitnessLevel, setFitnessLevel] = useState('');
+  const [gender, setGender] = useState('Prefiero no responder');
   const { colorScheme, setColorScheme } = useColorScheme();
 
   const handleToggleTheme = () => {
@@ -31,6 +32,7 @@ export default function ProfileScreen({ navigation }: TabScreenProps<'Profile'>)
         setHeight(p.height?.toString() || '');
         setAge(p.age?.toString() || '');
         setFitnessLevel(p.fitnessLevel || 'Beginner');
+        setGender(p.gender || 'Prefiero no responder');
       }
     } catch (e) {
       console.error(e);
@@ -46,8 +48,8 @@ export default function ProfileScreen({ navigation }: TabScreenProps<'Profile'>)
     try {
       const db = getDB();
       db.runSync(
-        'UPDATE UserProfile SET weight = ?, height = ?, age = ?, fitnessLevel = ? WHERE id = ?',
-        [parseFloat(weight), parseFloat(height), parseInt(age, 10), fitnessLevel, profile.id]
+        'UPDATE UserProfile SET weight = ?, height = ?, age = ?, fitnessLevel = ?, gender = ? WHERE id = ?',
+        [parseFloat(weight), parseFloat(height), parseInt(age, 10), fitnessLevel, gender, profile.id]
       );
       Alert.alert('Éxito', 'Perfil actualizado correctamente');
       loadProfile();
@@ -117,6 +119,23 @@ export default function ProfileScreen({ navigation }: TabScreenProps<'Profile'>)
               className="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-4 rounded-xl border border-gray-200 dark:border-gray-700"
               placeholderTextColor="#9ca3af"
             />
+          </View>
+
+          <View className="mt-4">
+            <Text className="text-gray-500 dark:text-gray-400 mb-2">Género</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {['Hombre', 'Mujer', 'Otro', 'Prefiero no responder'].map(option => (
+                <TouchableOpacity
+                  key={option}
+                  onPress={() => setGender(option)}
+                  className={`px-4 py-3 rounded-xl border ${gender === option ? 'bg-indigo-600 border-indigo-500' : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700'}`}
+                >
+                  <Text className={gender === option ? 'text-white font-bold' : 'text-gray-500 dark:text-gray-400'}>
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           <View className="mt-4">
