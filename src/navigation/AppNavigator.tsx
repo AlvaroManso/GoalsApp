@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import CheckInScreen from '../screens/CheckInScreen';
 import DashboardScreen from '../screens/DashboardScreen';
+import TrackerScreen from '../screens/TrackerScreen';
 import { RootStackParamList } from '../types/navigation';
 import { getDB } from '../db/database';
 
@@ -51,6 +52,11 @@ export default function AppNavigator() {
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="CheckIn" component={CheckInScreen} />
         <Stack.Screen name="Dashboard" component={DashboardScreen} />
+        <Stack.Screen 
+          name="Tracker" 
+          component={TrackerScreen} 
+          options={{ presentation: 'fullScreenModal' }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

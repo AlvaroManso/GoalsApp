@@ -142,12 +142,20 @@ export default function DashboardScreen({ navigation }: Props) {
     <View className="flex-1 bg-gray-900 pt-12 px-6">
       <View className="flex-row justify-between items-center mb-8">
         <Text className="text-3xl text-white font-bold">Mis Eventos</Text>
-        <TouchableOpacity 
-          className="bg-blue-600 rounded-full w-10 h-10 items-center justify-center"
-          onPress={() => setIsModalVisible(true)}
-        >
-          <Text className="text-white text-2xl font-bold">+</Text>
-        </TouchableOpacity>
+        <View className="flex-row items-center">
+          <TouchableOpacity 
+            className="bg-green-600 rounded-full w-10 h-10 items-center justify-center mr-3"
+            onPress={() => navigation.navigate('Tracker')}
+          >
+            <Text className="text-white text-xl">🏃</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            className="bg-blue-600 rounded-full w-10 h-10 items-center justify-center"
+            onPress={() => setIsModalVisible(true)}
+          >
+            <Text className="text-white text-2xl font-bold">+</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {events.length === 0 ? (
