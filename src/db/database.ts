@@ -30,7 +30,26 @@ export const initDB = () => {
         fatigue INTEGER,
         jointPain INTEGER
       );
+
+      CREATE TABLE IF NOT EXISTS TrainingPlan (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        weekNumber INTEGER,
+        dayOfWeek INTEGER,
+        date TEXT,
+        activityType TEXT,
+        durationMinutes INTEGER,
+        targetHRZone TEXT,
+        coachNotes TEXT
+      );
     `);
+
+    // Intentamos añadir la columna 'description' si la tabla ya existía de antes y no la tiene.
+    try {
+      db.execSync('ALTER TABLE Events ADD COLUMN description TEXT;');
+    } catch (e) {
+      // Ignoramos el error si la columna ya existe
+    }
+
     console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);

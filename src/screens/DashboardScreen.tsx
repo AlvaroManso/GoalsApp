@@ -19,6 +19,7 @@ export default function DashboardScreen({ navigation }: Props) {
   // Modals
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isApiKeyModalVisible, setIsApiKeyModalVisible] = useState(false);
+  const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false);
 
   // Form states
   const [eventType, setEventType] = useState('10k');
@@ -27,8 +28,10 @@ export default function DashboardScreen({ navigation }: Props) {
   const [eventPriority, setEventPriority] = useState('A');
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [tempApiKey, setTempApiKey] = useState('');
+  const [equipment, setEquipment] = useState<string[]>([]);
 
   const EVENT_OPTIONS = ['10k', 'Media Maratón', 'Maratón', 'Triatlón', 'Ciclismo', 'Trail/Montaña', 'Fuerza', 'Hyrox', 'Otro'];
+  const EQUIPMENT_OPTIONS = ['Cinta de Correr', 'Rodillo / Bici Estática', 'Piscina Infinita / Estática', 'Pesas / Gimnasio', 'Pista de Atletismo'];
 
   const loadEvents = () => {
     try {
@@ -121,7 +124,8 @@ export default function DashboardScreen({ navigation }: Props) {
         jointPain: checkin ? checkin.jointPain : 1,
         events: events,
         runAvailability: 4, // Harcodeado temporalmente
-        strengthAvailability: 2 // Harcodeado temporalmente
+        strengthAvailability: 2, // Harcodeado temporalmente
+        equipment: equipment
       });
 
       setPlan(generatedPlan);
@@ -149,6 +153,12 @@ export default function DashboardScreen({ navigation }: Props) {
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar la API Key.');
     }
+  };
+
+      const handleToggleEquipment = (item: string) => {
+    setEquipment(prev => 
+      prev.includes(item) ? prev.filter(e => e !== item) : [...prev, item]
+    );
   };
 
   if (isLoading) return <LoadingState message="Cargando eventos..." />;
@@ -205,13 +215,22 @@ export default function DashboardScreen({ navigation }: Props) {
         </View>
       )}
 
-      {/* IA Plan Generator Button */}
-      <TouchableOpacity 
-        className="bg-indigo-600 rounded-xl py-4 items-center mt-6 shadow-lg shadow-indigo-500/50"
-        onPress={handleGeneratePlan}
-      >
-        <Text className="text-white font-bold text-lg">✨ Generar Plan con IA</Text>
-      </TouchableOpacity>
+      {/* IA Plan Generator Section */}
+      <View className="flex-row justify-between items-center mt-6 mb-2">
+        <TouchableOpacity 
+          className="bg-indigo-600 rounded-xl py-4 items-center shadow-lg shadow-indigo-500/50 flex-1 mr-2"
+          onPress={handleGeneratePlan}
+        >
+          <Text className="text-white font-bold text-lg">✨ Generar Plan IA</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          className="bg-gray-800 rounded-xl py-4 px-4 items-center border border-gray-700"
+          onPress={() => setIsEquipmentModalVisible(true)}
+        >
+          <Text className="text-white font-bold">⚙️ Eq. Indoor</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Render AI Plan Result */}
       {plan.length > 0 && (
@@ -377,6 +396,49 @@ export default function DashboardScreen({ navigation }: Props) {
               </View>
             </View>
           </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Modal para Seleccionar Equipamiento Indoor */}
+      <Modal visible={isEquipmentModalVisible} animationType="slide" transparent>
+        <TouchableWithoutFeedback onPress={() => setIsEquipmentModalVisible(false)}>
+          <View className="flex-1 justify-end bg-black/80">
+            <TouchableWithoutFeedback>
+              <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
+                <Text className="text-2xl text-white font-bold mb-2">Equipamiento Indoor</Text>
+                <Text className="text-gray-400 mb-6">
+                  Selecciona el equipamiento del que dispones. La IA lo tendrá en cuenta para generar alternativas si hay fatiga o mal clima.
+                </Text>
+
+                <View className="mb-6">
+                  {EQUIPMENT_OPTIONS.map((item) => {
+                    const isSelected = equipment.includes(item);
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        onPress={() => handleToggleEquipment(item)}
+                        className={`flex-row justify-between items-center p-4 mb-2 rounded-xl border ${
+                          isSelected ? 'bg-indigo-600/20 border-indigo-500' : 'bg-gray-700 border-gray-600'
+                        }`}
+                      >
+                        <Text className={`font-bold ${isSelected ? 'text-indigo-400' : 'text-gray-300'}`}>
+                          {item}
+                        </Text>
+                        {isSelected && <Text className="text-indigo-400 font-bold">✓</Text>}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity 
+                  className="bg-indigo-600 py-4 rounded-xl items-center"
+                  onPress={() => setIsEquipmentModalVisible(false)}
+                >
+                  <Text className="text-white font-bold">Aceptar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
         </TouchableWithoutFeedback>
       </Modal>
     </View>

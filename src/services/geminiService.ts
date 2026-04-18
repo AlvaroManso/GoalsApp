@@ -8,7 +8,8 @@ REGLAS FISIOLÓGICAS INQUEBRANTABLES:
 2. Fatiga Cruzada: NUNCA programes una Tirada Larga de carrera el día posterior a un entrenamiento pesado de Fuerza o Hyrox.
 3. Tapering: Si hay un evento Prioridad A en los próximos 14 días, reduce el volumen de entrenamiento un 30-50% progresivamente.
 4. Nutrición: Para sesiones de duración > 90 minutos, incluye una nota: 'Ingerir 40-60g CH/hora y 500ml agua con electrolitos/hora'.
-FORMATO JSON REQUERIDO: Devuelve estrictamente un array de objetos. Estructura: 'dayOfWeek' (number 1-7), 'activityType' (string: Run, Strength, Rest, Crosstraining), 'durationMinutes' (number), 'targetHRZone' (string) y 'coachNotes' (string).`;
+5. Equipamiento: Si el usuario indica que dispone de equipamiento de interior (cinta, rodillo/bici, piscina), siéntete libre de programar sesiones específicas usando ese equipo, especialmente útil para recuperación o si la fatiga de impacto es alta.
+FORMATO JSON REQUERIDO: Devuelve estrictamente un array de objetos. Estructura: 'dayOfWeek' (number 1-7), 'activityType' (string: Run, Treadmill, Cycling, Strength, Rest, Crosstraining, Swimming), 'durationMinutes' (number), 'targetHRZone' (string) y 'coachNotes' (string).`;
 
 export interface PlanSession {
   dayOfWeek: number;
@@ -26,6 +27,7 @@ interface GeneratePlanParams {
   events: { type: string; priority: string; date: string }[];
   runAvailability: number;
   strengthAvailability: number;
+  equipment: string[];
 }
 
 export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<PlanSession[]> => {
@@ -36,24 +38,51 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-pro-latest', // Cambiado a 1.5-pro-latest que es más estable en esta versión
-      systemInstruction: SYSTEM_PROMPT,
-      generationConfig: {
-        responseMimeType: 'application/json',
-      }
-    });
 
     const eventsList = params.events.map(e => `${e.type} (Prioridad ${e.priority}) el ${e.date}`).join(', ');
 
     const dynamicPrompt = `Atleta de ${params.age} años. FC Reposo: ${params.restingHR}. Fatiga: ${params.fatigue}/10. Dolor articular: ${params.jointPain}/10.
 Eventos próximos: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${params.runAvailability} run, ${params.strengthAvailability} fuerza.
+Equipamiento disponible en el sitio: [${params.equipment.length > 0 ? params.equipment.join(', ') : 'Ninguno, solo exterior'}].
 Genera el plan de entrenamiento en JSON.`;
 
     console.log('Enviando prompt a Gemini:', dynamicPrompt);
 
-    const result = await model.generateContent(dynamicPrompt);
-    const responseText = result.response.text();
+    // Cascada de mejor a peor calidad (siempre con fallback para evitar bloqueos por 404).
+    const modelCandidates = [
+      'gemini-2.5-pro',
+      'gemini-1.5-pro',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ];
+
+    let responseText = '';
+    let lastError: unknown = null;
+
+    for (const modelName of modelCandidates) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: SYSTEM_PROMPT,
+          generationConfig: {
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const result = await model.generateContent(dynamicPrompt);
+        responseText = result.response.text();
+        console.log(`Gemini model used: ${modelName}`);
+        break;
+      } catch (err) {
+        lastError = err;
+        console.warn(`Gemini model failed: ${modelName}`);
+      }
+    }
+
+    if (!responseText) {
+      throw lastError ?? new Error('No se pudo obtener respuesta de ningún modelo Gemini.');
+    }
     
     // Parseamos la respuesta usando nuestro sanitizador robusto
     const plan = parseAIResponse(responseText);
