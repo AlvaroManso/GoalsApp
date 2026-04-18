@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { RootStackScreenProps } from '../types/navigation';
 import { getDB } from '../db/database';
 import { calculateHeartRateZones } from '../utils/physiology';
@@ -13,6 +13,8 @@ export default function OnboardingScreen({ navigation }: Props) {
   const [restingHR, setRestingHR] = useState('');
 
   const handleSave = () => {
+    Keyboard.dismiss();
+    
     if (!age || !weight || !maxHR || !restingHR) {
       Alert.alert('Error', 'Por favor, completa todos los campos.');
       return;
@@ -48,57 +50,62 @@ export default function OnboardingScreen({ navigation }: Props) {
   };
 
   return (
-    <View className="flex-1 bg-gray-900 px-6 py-12 justify-center">
-      <Text className="text-3xl text-white font-bold mb-8 text-center">Configura tu Perfil</Text>
-      
-      <View className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
-        <Text className="text-gray-400 mb-2">Edad (años)</Text>
-        <TextInput
-          className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
-          placeholder="Ej: 30"
-          placeholderTextColor="#9ca3af"
-          keyboardType="numeric"
-          value={age}
-          onChangeText={setAge}
-        />
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        className="flex-1 bg-gray-900 px-6 py-12 justify-center"
+      >
+        <Text className="text-3xl text-white font-bold mb-8 text-center">Configura tu Perfil</Text>
+        
+        <View className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
+          <Text className="text-gray-400 mb-2">Edad (años)</Text>
+          <TextInput
+            className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
+            placeholder="Ej: 30"
+            placeholderTextColor="#9ca3af"
+            keyboardType="numeric"
+            value={age}
+            onChangeText={setAge}
+          />
 
-        <Text className="text-gray-400 mb-2">Peso (kg)</Text>
-        <TextInput
-          className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
-          placeholder="Ej: 75.5"
-          placeholderTextColor="#9ca3af"
-          keyboardType="numeric"
-          value={weight}
-          onChangeText={setWeight}
-        />
+          <Text className="text-gray-400 mb-2">Peso (kg)</Text>
+          <TextInput
+            className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
+            placeholder="Ej: 75.5"
+            placeholderTextColor="#9ca3af"
+            keyboardType="numeric"
+            value={weight}
+            onChangeText={setWeight}
+          />
 
-        <Text className="text-gray-400 mb-2">FC Máxima (ppm)</Text>
-        <TextInput
-          className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
-          placeholder="Ej: 190"
-          placeholderTextColor="#9ca3af"
-          keyboardType="numeric"
-          value={maxHR}
-          onChangeText={setMaxHR}
-        />
+          <Text className="text-gray-400 mb-2">FC Máxima (ppm)</Text>
+          <TextInput
+            className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
+            placeholder="Ej: 190"
+            placeholderTextColor="#9ca3af"
+            keyboardType="numeric"
+            value={maxHR}
+            onChangeText={setMaxHR}
+          />
 
-        <Text className="text-gray-400 mb-2">FC Reposo (ppm)</Text>
-        <TextInput
-          className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-6"
-          placeholder="Ej: 50"
-          placeholderTextColor="#9ca3af"
-          keyboardType="numeric"
-          value={restingHR}
-          onChangeText={setRestingHR}
-        />
+          <Text className="text-gray-400 mb-2">FC Reposo (ppm)</Text>
+          <TextInput
+            className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-6"
+            placeholder="Ej: 50"
+            placeholderTextColor="#9ca3af"
+            keyboardType="numeric"
+            value={restingHR}
+            onChangeText={setRestingHR}
+          />
 
-        <TouchableOpacity 
-          className="bg-blue-600 rounded-xl py-4 items-center"
-          onPress={handleSave}
-        >
-          <Text className="text-white font-bold text-lg">Guardar Perfil</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <TouchableOpacity 
+            className="bg-blue-600 rounded-xl py-4 items-center"
+            onPress={handleSave}
+          >
+            <Text className="text-white font-bold text-lg">Guardar Perfil</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }

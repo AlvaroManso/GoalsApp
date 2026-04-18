@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 const GEMINI_API_KEY_KEY = 'GEMINI_API_KEY';
+const DEFAULT_API_KEY = 'AIzaSyAJyNASKu2yFNOXcjjUW8dLl63lFG9uaqY';
 
 export const saveApiKey = async (key: string): Promise<void> => {
   try {
@@ -13,10 +14,13 @@ export const saveApiKey = async (key: string): Promise<void> => {
 
 export const getApiKey = async (): Promise<string | null> => {
   try {
-    return await SecureStore.getItemAsync(GEMINI_API_KEY_KEY);
+    const key = await SecureStore.getItemAsync(GEMINI_API_KEY_KEY);
+    // Si hay una key guardada, devuélvela, si no, usa la que el usuario nos ha pasado por defecto.
+    return key || DEFAULT_API_KEY;
   } catch (error) {
     console.error('Error retrieving API Key:', error);
-    return null;
+    // En caso de error leyendo SecureStore (raro), intentar usar el fallback.
+    return DEFAULT_API_KEY;
   }
 };
 

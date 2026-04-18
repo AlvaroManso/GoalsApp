@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { RootStackScreenProps } from '../types/navigation';
 import { getEvents, addEvent, deleteEvent, AppEvent } from '../db/events';
 import { getDB } from '../db/database';
@@ -220,98 +220,120 @@ export default function DashboardScreen({ navigation }: Props) {
 
       {/* Modal para Añadir Evento */}
       <Modal visible={isModalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/80">
-          <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
-            <Text className="text-2xl text-white font-bold mb-6">Nuevo Evento</Text>
-            
-            <Text className="text-gray-400 mb-2">Tipo de Evento</Text>
-            <View className="flex-row justify-between mb-4">
-              {['10k', 'Maratón', 'Fuerza', 'Hyrox'].map(type => (
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            className="flex-1 justify-end bg-black/80"
+          >
+            <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
+              <Text className="text-2xl text-white font-bold mb-6">Nuevo Evento</Text>
+              
+              <Text className="text-gray-400 mb-2">Tipo de Evento</Text>
+              <View className="flex-row justify-between mb-4">
+                {['10k', 'Maratón', 'Fuerza', 'Hyrox'].map(type => (
+                  <TouchableOpacity 
+                    key={type}
+                    className={`px-3 py-2 rounded-lg ${eventType === type ? 'bg-blue-600' : 'bg-gray-700'}`}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setEventType(type);
+                    }}
+                  >
+                    <Text className="text-white">{type}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text className="text-gray-400 mb-2">Prioridad</Text>
+              <View className="flex-row justify-between mb-6">
+                {['A', 'B', 'C'].map(priority => (
+                  <TouchableOpacity 
+                    key={priority}
+                    className={`px-6 py-2 rounded-lg ${eventPriority === priority ? 'bg-blue-600' : 'bg-gray-700'}`}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setEventPriority(priority);
+                    }}
+                  >
+                    <Text className="text-white font-bold">{priority}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text className="text-gray-400 mb-2">Fecha (YYYY-MM-DD)</Text>
+              <TextInput
+                className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-8"
+                placeholder="2026-10-15"
+                placeholderTextColor="#9ca3af"
+                value={eventDate}
+                onChangeText={setEventDate}
+              />
+
+              <View className="flex-row justify-between">
                 <TouchableOpacity 
-                  key={type}
-                  className={`px-3 py-2 rounded-lg ${eventType === type ? 'bg-blue-600' : 'bg-gray-700'}`}
-                  onPress={() => setEventType(type)}
+                  className="bg-gray-700 py-4 rounded-xl flex-1 mr-2 items-center"
+                  onPress={() => setIsModalVisible(false)}
                 >
-                  <Text className="text-white">{type}</Text>
+                  <Text className="text-white font-bold">Cancelar</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text className="text-gray-400 mb-2">Prioridad</Text>
-            <View className="flex-row justify-between mb-6">
-              {['A', 'B', 'C'].map(priority => (
                 <TouchableOpacity 
-                  key={priority}
-                  className={`px-6 py-2 rounded-lg ${eventPriority === priority ? 'bg-blue-600' : 'bg-gray-700'}`}
-                  onPress={() => setEventPriority(priority)}
+                  className="bg-blue-600 py-4 rounded-xl flex-1 ml-2 items-center"
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleAddEvent();
+                  }}
                 >
-                  <Text className="text-white font-bold">{priority}</Text>
+                  <Text className="text-white font-bold">Guardar</Text>
                 </TouchableOpacity>
-              ))}
+              </View>
             </View>
-
-            <Text className="text-gray-400 mb-2">Fecha (YYYY-MM-DD)</Text>
-            <TextInput
-              className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-8"
-              placeholder="2026-10-15"
-              placeholderTextColor="#9ca3af"
-              value={eventDate}
-              onChangeText={setEventDate}
-            />
-
-            <View className="flex-row justify-between">
-              <TouchableOpacity 
-                className="bg-gray-700 py-4 rounded-xl flex-1 mr-2 items-center"
-                onPress={() => setIsModalVisible(false)}
-              >
-                <Text className="text-white font-bold">Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                className="bg-blue-600 py-4 rounded-xl flex-1 ml-2 items-center"
-                onPress={handleAddEvent}
-              >
-                <Text className="text-white font-bold">Guardar</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Modal para API Key */}
       <Modal visible={isApiKeyModalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/80">
-          <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
-            <Text className="text-2xl text-white font-bold mb-4">Configurar Gemini AI</Text>
-            <Text className="text-gray-400 mb-6">
-              Para generar tu plan de entrenamiento, necesitamos tu API Key de Google Gemini. 
-              Esta clave se guardará de forma encriptada en tu dispositivo.
-            </Text>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            className="flex-1 justify-end bg-black/80"
+          >
+            <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
+              <Text className="text-2xl text-white font-bold mb-4">Configurar Gemini AI</Text>
+              <Text className="text-gray-400 mb-6">
+                Para generar tu plan de entrenamiento, necesitamos tu API Key de Google Gemini. 
+                Esta clave se guardará de forma encriptada en tu dispositivo.
+              </Text>
 
-            <TextInput
-              className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-8"
-              placeholder="Pega tu API Key aquí..."
-              placeholderTextColor="#9ca3af"
-              secureTextEntry
-              value={tempApiKey}
-              onChangeText={setTempApiKey}
-            />
+              <TextInput
+                className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-8"
+                placeholder="Pega tu API Key aquí..."
+                placeholderTextColor="#9ca3af"
+                secureTextEntry
+                value={tempApiKey}
+                onChangeText={setTempApiKey}
+              />
 
-            <View className="flex-row justify-between">
-              <TouchableOpacity 
-                className="bg-gray-700 py-4 rounded-xl flex-1 mr-2 items-center"
-                onPress={() => setIsApiKeyModalVisible(false)}
-              >
-                <Text className="text-white font-bold">Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                className="bg-indigo-600 py-4 rounded-xl flex-1 ml-2 items-center"
-                onPress={handleSaveApiKey}
-              >
-                <Text className="text-white font-bold">Guardar Key</Text>
-              </TouchableOpacity>
+              <View className="flex-row justify-between">
+                <TouchableOpacity 
+                  className="bg-gray-700 py-4 rounded-xl flex-1 mr-2 items-center"
+                  onPress={() => setIsApiKeyModalVisible(false)}
+                >
+                  <Text className="text-white font-bold">Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  className="bg-indigo-600 py-4 rounded-xl flex-1 ml-2 items-center"
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleSaveApiKey();
+                  }}
+                >
+                  <Text className="text-white font-bold">Guardar Key</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
