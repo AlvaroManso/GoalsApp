@@ -1,18 +1,34 @@
 import './global.css';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text } from 'react-native';
 import { initDB } from './src/db/database';
+import AppNavigator from './src/navigation/AppNavigator';
 
 export default function App() {
+  const [dbReady, setDbReady] = useState(false);
+
   useEffect(() => {
-    initDB();
+    try {
+      initDB();
+      setDbReady(true);
+    } catch (error) {
+      console.error('Error in App DB init:', error);
+    }
   }, []);
 
+  if (!dbReady) {
+    return (
+      <View className="flex-1 items-center justify-center bg-gray-900">
+        <Text className="text-white">Cargando base de datos...</Text>
+      </View>
+    );
+  }
+
   return (
-    <View className="flex-1 items-center justify-center bg-gray-900">
-      <Text className="text-white text-xl font-bold">AI Hybrid Athlete Coach</Text>
+    <>
       <StatusBar style="light" />
-    </View>
+      <AppNavigator />
+    </>
   );
 }
