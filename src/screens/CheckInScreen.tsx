@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { RootStackScreenProps } from '../types/navigation';
 import { getDB } from '../db/database';
@@ -10,6 +10,7 @@ type Props = RootStackScreenProps<'CheckIn'>;
 export default function CheckInScreen({ navigation }: Props) {
   const [fatigue, setFatigue] = useState<number>(5);
   const [jointPain, setJointPain] = useState<number>(1);
+  const [sleepQuality, setSleepQuality] = useState<string>('Bien');
 
   const handleSave = () => {
     try {

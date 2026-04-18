@@ -43,3 +43,17 @@ export const getActivities = (): Activity[] => {
     return [];
   }
 };
+
+export const deleteActivityByDateAndType = (date: string, type: string) => {
+  try {
+    const db = getDB();
+    // Use LIKE date% to match the date part of the ISO string
+    db.runSync(
+      'DELETE FROM ActivityHistory WHERE date LIKE ? AND type = ? AND distanceKm = 0',
+      [`${date}%`, type]
+    );
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    throw error;
+  }
+};

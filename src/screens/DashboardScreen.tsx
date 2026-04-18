@@ -7,10 +7,10 @@ import { getDB } from '../db/database';
 import { LoadingState, ErrorState, EmptyState } from '../components/UIStates';
 import { generateWeeklyPlan, PlanSession } from '../services/geminiService';
 import { saveApiKey, getApiKey } from '../services/secureStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { saveTrainingPlan, getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
-import { getActivities } from '../db/activities';
-
-import { saveActivity } from '../db/activities';
+import { saveActivity, deleteActivityByDateAndType, getActivities } from '../db/activities';
 
 type Props = TabScreenProps<'Dashboard'>;
 
@@ -38,7 +38,10 @@ export default function DashboardScreen({ navigation }: Props) {
   const [tempApiKey, setTempApiKey] = useState('');
   const [equipment, setEquipment] = useState<string[]>([]);
   const [userPreferences, setUserPreferences] = useState('');
+  const [runDays, setRunDays] = useState(4);
+  const [strengthDays, setStrengthDays] = useState(2);
   const [refreshing, setRefreshing] = useState(false);
+  const { t } = useTranslation();
 
   const EVENT_OPTIONS = ['10k', 'Media Maratón', 'Maratón', 'Triatlón', 'Ciclismo', 'Trail/Montaña', 'Fuerza', 'Hyrox', 'Otro'];
   const EQUIPMENT_OPTIONS = ['Cinta de Correr', 'Rodillo / Bici Estática', 'Piscina Infinita / Estática', 'Pesas / Gimnasio', 'Pista de Atletismo'];
@@ -59,8 +62,11 @@ export default function DashboardScreen({ navigation }: Props) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const day = today.getDay(); // 0 is Sunday, 1 is Monday...
-        const diffToMonday = today.getDate() - day + (day === 0 ? -6 : 1);
-        const currentMonday = new Date(today.setDate(diffToMonday));
+        // Ajuste: Si es domingo (0), la diferencia al lunes anterior es -6 días.
+        // Si es cualquier otro día, la diferencia es 1 - day.
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        const currentMonday = new Date(today);
+        currentMonday.setDate(today.getDate() + diffToMonday);
         currentMonday.setHours(0, 0, 0, 0);
 
         // Obtener 7 días desde el lunes de la semana actual
@@ -88,8 +94,28 @@ export default function DashboardScreen({ navigation }: Props) {
   };
 
   useEffect(() => {
+    const loadSavedPreferences = async () => {
+      try {
+        const savedPrefs = await AsyncStorage.getItem('user-preferences');
+        if (savedPrefs !== null) {
+          setUserPreferences(savedPrefs);
+        }
+      } catch (e) {
+        console.error('Error loading preferences', e);
+      }
+    };
+    loadSavedPreferences();
     loadEvents();
   }, []);
+
+  const handlePreferencesChange = async (text: string) => {
+    setUserPreferences(text);
+    try {
+      await AsyncStorage.setItem('user-preferences', text);
+    } catch (e) {
+      console.error('Error saving preferences', e);
+    }
+  };
 
   // Refresh on focus
   useEffect(() => {
@@ -168,7 +194,7 @@ export default function DashboardScreen({ navigation }: Props) {
 
   const handleDeleteEvent = (id: number) => {
     Alert.alert('Eliminar Evento', '¿Estás seguro de que deseas eliminar este evento?', [
-      { text: 'Cancelar', style: 'cancel' },
+      { text: t('modals.cancel'), style: 'cancel' },
       { 
         text: 'Eliminar', 
         style: 'destructive',
@@ -210,6 +236,13 @@ export default function DashboardScreen({ navigation }: Props) {
     }
   };
   const handleGeneratePlan = async () => {
+    // Si no hay plan generado y las preferencias están vacías, obligar a rellenar primero.
+    if (plan.length === 0 && userPreferences.trim() === '') {
+      Alert.alert(t('dashboard.prefsNeeded'), t('dashboard.prefsNeededMsg'));
+      setIsPreGenModalVisible(true);
+      return;
+    }
+
     const key = await getApiKey();
     if (!key) {
       setIsApiKeyModalVisible(true);
@@ -226,7 +259,7 @@ export default function DashboardScreen({ navigation }: Props) {
       const checkin = db.getFirstSync<any>('SELECT * FROM DailyCheckin WHERE date = ? ORDER BY id DESC LIMIT 1', [today]);
 
       if (!profile) {
-        Alert.alert('Error', 'No se encontró el perfil del usuario.');
+        Alert.alert('Error', t('dashboard.errorProfile'));
         setIsGeneratingPlan(false);
         return;
       }
@@ -240,8 +273,8 @@ export default function DashboardScreen({ navigation }: Props) {
         fatigue: checkin ? checkin.fatigue : 5,
         jointPain: checkin ? checkin.jointPain : 1,
         events: events,
-        runAvailability: 4, // Harcodeado temporalmente
-        strengthAvailability: 2, // Harcodeado temporalmente
+        runAvailability: runDays,
+        strengthAvailability: strengthDays,
         equipment: equipment,
         userPreferences: userPreferences,
         onProgress: (prog) => {
@@ -253,10 +286,10 @@ export default function DashboardScreen({ navigation }: Props) {
       const newPlan = getAllTrainingPlan();
       setPlan(newPlan);
       
-      Alert.alert('Éxito', '¡Se ha generado y guardado un macrociclo de 52 semanas! Revisa la pestaña de Calendario.');
+      Alert.alert('Éxito', t('dashboard.successPlan'));
     } catch (error: any) {
       console.error('Error in handleGeneratePlan:', error);
-      Alert.alert('Error', error.message || 'No se pudo generar el plan con la IA.');
+      Alert.alert('Error', error.message || t('dashboard.errorPlan'));
     } finally {
       setIsGeneratingPlan(false);
     }
@@ -288,12 +321,12 @@ export default function DashboardScreen({ navigation }: Props) {
 
   const handleMarkAsCompleted = (item: PlanSession) => {
     Alert.alert(
-      'Marcar como Completado',
-      `¿Quieres marcar "${item.activityType}" como completado sin registrar datos de GPS ni tiempo?`,
+      t('dashboard.markTitle'),
+      t('dashboard.markMsg', { activity: item.activityType }),
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: t('dashboard.cancel'), style: 'cancel' },
         {
-          text: 'Sí, Completado',
+          text: t('dashboard.mark'),
           onPress: () => {
             try {
               saveActivity({
@@ -316,6 +349,28 @@ export default function DashboardScreen({ navigation }: Props) {
     );
   };
 
+  const handleUnmarkAsCompleted = (item: PlanSession) => {
+    Alert.alert(
+      t('dashboard.unmarkTitle'),
+      t('dashboard.unmarkMsg', { activity: item.activityType }),
+      [
+        { text: t('dashboard.cancel'), style: 'cancel' },
+        {
+          text: t('dashboard.unmark'),
+          style: 'destructive',
+          onPress: () => {
+            try {
+              deleteActivityByDateAndType(item.date!, item.activityType);
+              loadEvents(); // Recargar para quitar el check verde
+            } catch (err) {
+              Alert.alert('Error', 'No se pudo desmarcar la actividad.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (isLoading) return <LoadingState message="Cargando eventos..." />;
   if (isError) return <ErrorState message="No se pudieron cargar tus eventos. Intenta de nuevo." />;
   if (isGeneratingPlan) {
@@ -323,10 +378,10 @@ export default function DashboardScreen({ navigation }: Props) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-50 dark:bg-gray-900 px-6">
         <Text className="text-xl text-gray-900 dark:text-white font-bold text-center mb-4">
-          🧠 Generando un MACROCICLO completo de 52 SEMANAS...
+          {t('dashboard.generating')}
         </Text>
         <Text className="text-gray-500 dark:text-gray-400 text-center mb-8">
-          (Esto puede tardar hasta 1 minuto)
+          {t('dashboard.generatingWait')}
         </Text>
 
         <View className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6 overflow-hidden mb-2">
@@ -336,7 +391,7 @@ export default function DashboardScreen({ navigation }: Props) {
           />
         </View>
         <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">
-          {weeksGenerated} / 52 Semanas
+          {t('dashboard.weeksGenerated', { current: weeksGenerated })}
         </Text>
       </View>
     );
@@ -350,7 +405,7 @@ export default function DashboardScreen({ navigation }: Props) {
       }
     >
       <View className="flex-row justify-between items-center mb-8 pl-2">
-        <Text className="text-3xl text-gray-900 dark:text-white font-bold">Mis Eventos</Text>
+        <Text className="text-3xl text-gray-900 dark:text-white font-bold">{t('dashboard.myEvents')}</Text>
         <View className="flex-row items-center">
           <TouchableOpacity 
             className="bg-white dark:bg-gray-800 rounded-full w-10 h-10 items-center justify-center mr-3 border border-gray-200 dark:border-gray-700 shadow-sm"
@@ -371,7 +426,7 @@ export default function DashboardScreen({ navigation }: Props) {
       </View>
 
       {events.length === 0 ? (
-        <EmptyState message="No tienes eventos programados. ¡Añade tu primer evento!" />
+        <EmptyState message={t('dashboard.noEvents')} />
       ) : (
         <View className="mb-4">
           {events.map((item) => {
@@ -383,10 +438,10 @@ export default function DashboardScreen({ navigation }: Props) {
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
             let daysText = '';
-            if (diffDays === 0) daysText = '¡Hoy!';
-            else if (diffDays === 1) daysText = 'Mañana';
-            else if (diffDays < 0) daysText = `Hace ${Math.abs(diffDays)} días`;
-            else daysText = `Faltan ${diffDays} días`;
+            if (diffDays === 0) daysText = t('dashboard.today');
+            else if (diffDays === 1) daysText = t('dashboard.tomorrow');
+            else if (diffDays < 0) daysText = t('dashboard.daysAgo', { days: Math.abs(diffDays) });
+            else daysText = t('dashboard.daysLeft', { days: diffDays });
 
             // Formatear fecha ej: 19-04-2024
             const dayNum = String(eventDateObj.getDate()).padStart(2, '0');
@@ -430,22 +485,22 @@ export default function DashboardScreen({ navigation }: Props) {
           className="bg-indigo-600 rounded-xl py-4 items-center shadow-lg shadow-indigo-500/50 flex-1 mr-2"
           onPress={handleGeneratePlan}
         >
-          <Text className="text-white font-bold text-lg">✨ Generar Plan IA</Text>
+          <Text className="text-white font-bold text-lg">{t('dashboard.generatePlan')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
           className="bg-white dark:bg-gray-800 rounded-xl py-4 px-4 items-center border border-gray-200 dark:border-gray-700 shadow-sm"
           onPress={() => setIsPreGenModalVisible(true)}
         >
-          <Text className="text-gray-800 dark:text-white font-bold">⚙️ Preferencias</Text>
+          <Text className="text-gray-800 dark:text-white font-bold">{t('dashboard.preferences')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Render AI Plan Result (Preview only 7 days) */}
       {plan.length > 0 && (
         <View className="mb-8 pl-2">
-          <Text className="text-xl text-gray-900 dark:text-white font-bold mb-2">Semana Actual</Text>
-          <Text className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Abre Calendario para las 52 semanas.</Text>
+          <Text className="text-xl text-gray-900 dark:text-white font-bold mb-2">{t('dashboard.currentWeek')}</Text>
+          <Text className="text-gray-500 dark:text-gray-400 mb-4 text-sm">{t('dashboard.openCalendarHint')}</Text>
           
           {plan.map((item, index) => {
             // Formatear fecha del plan ej: miércoles-19-04
@@ -467,7 +522,7 @@ export default function DashboardScreen({ navigation }: Props) {
                   'border-indigo-200 dark:border-indigo-900'
                 }`}
                 onPress={() => {
-                  if (!isRest && !isCompleted && index !== 0) { // Index 0 has specific buttons now
+                  if (!isRest && !isCompleted) { 
                     navigation.navigate('Tracker', { 
                       activityType: item.activityType,
                       requiresGPS: item.requiresGPS,
@@ -476,7 +531,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       coachNotes: item.coachNotes
                     });
                   } else if (isCompleted) {
-                    Alert.alert('Completado', 'Este entrenamiento ya ha sido completado.');
+                    handleUnmarkAsCompleted(item);
                   }
                 }}
                 activeOpacity={isRest || isCompleted ? 1 : 0.7}
@@ -514,7 +569,7 @@ export default function DashboardScreen({ navigation }: Props) {
                   <Text className="text-gray-600 dark:text-gray-400 leading-5">{item.coachNotes}</Text>
                 )}
                 
-                {!isRest && !isCompleted && index === 0 && (
+                {!isRest && !isCompleted && (
                   <View className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex-row justify-between items-center">
                     <TouchableOpacity 
                       className="bg-indigo-600/10 dark:bg-indigo-900/30 px-3 py-2 rounded-lg"
@@ -528,14 +583,14 @@ export default function DashboardScreen({ navigation }: Props) {
                         });
                       }}
                     >
-                      <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">Iniciar Tracker ▶</Text>
+                      <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{t('dashboard.startTracker')}</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity 
                       className="bg-green-600/10 dark:bg-green-900/30 px-3 py-2 rounded-lg flex-row items-center"
                       onPress={() => handleMarkAsCompleted(item)}
                     >
-                      <Text className="text-green-600 dark:text-green-400 font-bold text-sm mr-1">Completado</Text>
+                      <Text className="text-green-600 dark:text-green-400 font-bold text-sm mr-1">{t('dashboard.manualComplete')}</Text>
                       <Text className="text-green-600 dark:text-green-400 text-sm">✓</Text>
                     </TouchableOpacity>
                   </View>
@@ -555,10 +610,10 @@ export default function DashboardScreen({ navigation }: Props) {
           >
             <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
               <Text className="text-2xl text-white font-bold mb-6">
-                {editingEventId ? 'Editar Evento' : 'Nuevo Evento'}
+                {editingEventId ? t('modals.editEvent') : t('modals.newEvent')}
               </Text>
               
-              <Text className="text-gray-400 mb-2">Tipo de Evento</Text>
+              <Text className="text-gray-400 mb-2">{t('modals.eventType')}</Text>
               <View className="flex-row flex-wrap mb-4">
                 {EVENT_OPTIONS.map(type => (
                   <TouchableOpacity 
@@ -576,10 +631,9 @@ export default function DashboardScreen({ navigation }: Props) {
 
               {eventType === 'Otro' && (
                 <View className="mb-4">
-                  <Text className="text-gray-400 mb-2">Especifica el tipo de evento</Text>
+                  <Text className="text-gray-400 mb-2">{t('modals.specifyType')}</Text>
                   <TextInput
                     className="bg-gray-700 text-white rounded-lg px-4 py-3"
-                    placeholder="Ej: Ultramaratón 100k"
                     placeholderTextColor="#9ca3af"
                     value={customEventType}
                     onChangeText={setCustomEventType}
@@ -587,10 +641,9 @@ export default function DashboardScreen({ navigation }: Props) {
                 </View>
               )}
 
-              <Text className="text-gray-400 mb-2">Descripción o notas (Opcional)</Text>
+              <Text className="text-gray-400 mb-2">{t('modals.descNotes')}</Text>
               <TextInput
                 className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
-                placeholder="Ej: Carrera en pista de tierra, desnivel 200m..."
                 placeholderTextColor="#9ca3af"
                 value={eventDescription}
                 onChangeText={setEventDescription}
@@ -598,7 +651,7 @@ export default function DashboardScreen({ navigation }: Props) {
                 numberOfLines={2}
               />
 
-              <Text className="text-gray-400 mb-2">Fecha del Evento</Text>
+              <Text className="text-gray-400 mb-2">{t('modals.eventDate')}</Text>
               <TouchableOpacity 
                 className="bg-gray-700 rounded-lg px-4 py-3 mb-8"
                 onPress={() => {
@@ -607,23 +660,37 @@ export default function DashboardScreen({ navigation }: Props) {
                 }}
               >
                 <Text className="text-white">
-                  {eventDate.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  {eventDate.toLocaleDateString(t('locale') || 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </Text>
               </TouchableOpacity>
 
               {showDatePicker && (
-                <DateTimePicker
-                  value={eventDate}
-                  mode="date"
-                  display="default"
-                  minimumDate={new Date()} // No dejar poner eventos en el pasado
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      setEventDate(selectedDate);
-                    }
-                  }}
-                />
+                <View className="bg-white dark:bg-gray-700 rounded-xl mb-6 overflow-hidden">
+                  <DateTimePicker
+                    value={eventDate}
+                    mode="date"
+                    display="spinner"
+                    textColor={Platform.OS === 'ios' ? 'white' : undefined}
+                    themeVariant="dark"
+                    minimumDate={new Date()} // No dejar poner eventos en el pasado
+                    onChange={(event, selectedDate) => {
+                      if (Platform.OS === 'android') {
+                        setShowDatePicker(false);
+                      }
+                      if (selectedDate) {
+                        setEventDate(selectedDate);
+                      }
+                    }}
+                  />
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity 
+                      className="bg-indigo-600 py-3 items-center"
+                      onPress={() => setShowDatePicker(false)}
+                    >
+                      <Text className="text-white font-bold">{t('modals.confirmDate')}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
 
               <View className="flex-row justify-between">
@@ -631,7 +698,7 @@ export default function DashboardScreen({ navigation }: Props) {
                   className="bg-gray-700 py-4 rounded-xl flex-1 mr-2 items-center"
                   onPress={() => setIsModalVisible(false)}
                 >
-                  <Text className="text-white font-bold">Cancelar</Text>
+                  <Text className="text-white font-bold">{t('modals.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   className="bg-blue-600 py-4 rounded-xl flex-1 ml-2 items-center"
@@ -640,7 +707,7 @@ export default function DashboardScreen({ navigation }: Props) {
                     handleAddOrUpdateEvent();
                   }}
                 >
-                  <Text className="text-white font-bold">Guardar</Text>
+                  <Text className="text-white font-bold">{t('modals.save')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -656,15 +723,14 @@ export default function DashboardScreen({ navigation }: Props) {
             className="flex-1 justify-end bg-black/80"
           >
             <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
-              <Text className="text-2xl text-white font-bold mb-4">Configurar Gemini AI</Text>
+              <Text className="text-2xl text-white font-bold mb-4">{t('modals.setupGemini')}</Text>
               <Text className="text-gray-400 mb-6">
-                Para generar tu plan de entrenamiento, necesitamos tu API Key de Google Gemini. 
-                Esta clave se guardará de forma encriptada en tu dispositivo.
+                {t('modals.geminiDesc')}
               </Text>
 
               <TextInput
                 className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-8"
-                placeholder="Pega tu API Key aquí..."
+                placeholder="API Key..."
                 placeholderTextColor="#9ca3af"
                 secureTextEntry
                 value={tempApiKey}
@@ -676,7 +742,7 @@ export default function DashboardScreen({ navigation }: Props) {
                   className="bg-gray-700 py-4 rounded-xl flex-1 mr-2 items-center"
                   onPress={() => setIsApiKeyModalVisible(false)}
                 >
-                  <Text className="text-white font-bold">Cancelar</Text>
+                  <Text className="text-white font-bold">{t('modals.cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   className="bg-indigo-600 py-4 rounded-xl flex-1 ml-2 items-center"
@@ -685,7 +751,7 @@ export default function DashboardScreen({ navigation }: Props) {
                     handleSaveApiKey();
                   }}
                 >
-                  <Text className="text-white font-bold">Guardar Key</Text>
+                  <Text className="text-white font-bold">{t('modals.saveKey')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -700,24 +766,49 @@ export default function DashboardScreen({ navigation }: Props) {
             <TouchableWithoutFeedback>
               <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700 max-h-[80%]">
                 <ScrollView showsVerticalScrollIndicator={false}>
-                  <Text className="text-2xl text-white font-bold mb-2">Preferencias IA</Text>
+                  <Text className="text-2xl text-white font-bold mb-2">{t('modals.aiPrefs')}</Text>
                   <Text className="text-gray-400 mb-6">
-                    Ajusta tus preferencias antes de generar el plan.
+                    {t('modals.aiPrefsDesc')}
                   </Text>
 
-                  <Text className="text-white font-bold text-lg mb-2">Anotaciones Adicionales</Text>
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.addNotes')}</Text>
                   <TextInput
                     className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-6"
-                    placeholder="Ej: En Sevilla hace mucho calor en verano, o prefiero fuerza al fallo 5 repeticiones..."
                     placeholderTextColor="#9ca3af"
                     value={userPreferences}
-                    onChangeText={setUserPreferences}
+                    onChangeText={handlePreferencesChange}
                     multiline
                     numberOfLines={3}
                     style={{ textAlignVertical: 'top' }}
                   />
 
-                  <Text className="text-white font-bold text-lg mb-2">Equipamiento Indoor</Text>
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.runDays')}</Text>
+                  <View className="flex-row justify-between mb-4 bg-gray-700 rounded-xl p-1">
+                    {[1, 2, 3, 4, 5, 6, 7].map(num => (
+                      <TouchableOpacity
+                        key={`run-${num}`}
+                        onPress={() => setRunDays(num)}
+                        className={`flex-1 py-3 items-center rounded-lg ${runDays === num ? 'bg-indigo-600' : ''}`}
+                      >
+                        <Text className={`font-bold ${runDays === num ? 'text-white' : 'text-gray-400'}`}>{num}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.strDays')}</Text>
+                  <View className="flex-row justify-between mb-6 bg-gray-700 rounded-xl p-1">
+                    {[0, 1, 2, 3, 4, 5].map(num => (
+                      <TouchableOpacity
+                        key={`str-${num}`}
+                        onPress={() => setStrengthDays(num)}
+                        className={`flex-1 py-3 items-center rounded-lg ${strengthDays === num ? 'bg-indigo-600' : ''}`}
+                      >
+                        <Text className={`font-bold ${strengthDays === num ? 'text-white' : 'text-gray-400'}`}>{num}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.indoorEquip')}</Text>
                   <View className="mb-6">
                     {EQUIPMENT_OPTIONS.map((item) => {
                       const isSelected = equipment.includes(item);
@@ -742,7 +833,7 @@ export default function DashboardScreen({ navigation }: Props) {
                     className="bg-indigo-600 py-4 rounded-xl items-center mb-6"
                     onPress={() => setIsPreGenModalVisible(false)}
                   >
-                    <Text className="text-white font-bold">Guardar y Cerrar</Text>
+                    <Text className="text-white font-bold">{t('modals.saveClose')}</Text>
                   </TouchableOpacity>
                 </ScrollView>
               </KeyboardAvoidingView>

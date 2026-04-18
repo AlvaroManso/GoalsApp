@@ -59,11 +59,6 @@ export default function CalendarScreen({ navigation }: Props) {
       };
     });
 
-    // Seleccionar día actual si no está en marks
-    if (!marks[selectedDate]) {
-      marks[selectedDate] = { ...marks[selectedDate], selected: true, selectedColor: '#374151' };
-    }
-
     setMarkedDates(marks);
   };
 
@@ -82,7 +77,6 @@ export default function CalendarScreen({ navigation }: Props) {
         firstDay={1} // Lunes como primer día de la semana
         onDayPress={(day: any) => {
           setSelectedDate(day.dateString);
-          loadData(); // Recalcular marcadores para mover el selected visual
         }}
         markedDates={{
           ...markedDates,
@@ -140,9 +134,9 @@ export default function CalendarScreen({ navigation }: Props) {
             {selectedDate === new Date().toISOString().split('T')[0] && selectedSession.activityType.toLowerCase() !== 'rest' && (
               <TouchableOpacity 
                 className="bg-indigo-600 py-3 rounded-xl items-center flex-row justify-center mt-2 shadow-sm shadow-indigo-500/30"
-                onPress={() => navigation.navigate('Tracker', { 
+                onPress={() => (navigation as any).navigate('Tracker', { 
                   activityType: selectedSession.activityType,
-                  requiresGPS: selectedSession.requiresGPS,
+                  requiresGPS: (selectedSession as any).requiresGPS,
                   durationMinutes: selectedSession.durationMinutes,
                   targetHRZone: selectedSession.targetHRZone,
                   coachNotes: selectedSession.coachNotes
