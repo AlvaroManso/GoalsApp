@@ -2,7 +2,8 @@ import { getDB } from './database';
 
 export interface AppEvent {
   id?: number;
-  type: string;     // '10k', 'Maratón', 'Fuerza', 'Hyrox'
+  type: string;
+  description?: string;
   priority: string; // 'A', 'B', 'C'
   date: string;     // ISO String 'YYYY-MM-DD'
 }
@@ -21,8 +22,8 @@ export const addEvent = (event: AppEvent): void => {
   try {
     const db = getDB();
     db.runSync(
-      'INSERT INTO Events (type, priority, date) VALUES (?, ?, ?)',
-      [event.type, event.priority, event.date]
+      'INSERT INTO Events (type, description, priority, date) VALUES (?, ?, ?, ?)',
+      [event.type, event.description || null, event.priority, event.date]
     );
   } catch (error) {
     console.error('Error adding event:', error);

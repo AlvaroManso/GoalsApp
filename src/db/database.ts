@@ -19,6 +19,7 @@ export const initDB = () => {
       CREATE TABLE IF NOT EXISTS Events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         type TEXT,
+        description TEXT,
         priority TEXT,
         date TEXT
       );

@@ -22,9 +22,13 @@ export default function DashboardScreen({ navigation }: Props) {
 
   // Form states
   const [eventType, setEventType] = useState('10k');
+  const [customEventType, setCustomEventType] = useState('');
+  const [eventDescription, setEventDescription] = useState('');
   const [eventPriority, setEventPriority] = useState('A');
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [tempApiKey, setTempApiKey] = useState('');
+
+  const EVENT_OPTIONS = ['10k', 'Media Maratón', 'Maratón', 'Triatlón', 'Ciclismo', 'Trail/Montaña', 'Fuerza', 'Hyrox', 'Otro'];
 
   const loadEvents = () => {
     try {
@@ -44,13 +48,26 @@ export default function DashboardScreen({ navigation }: Props) {
   }, []);
 
   const handleAddEvent = () => {
-    if (!eventType || !eventPriority || !eventDate) {
-      Alert.alert('Error', 'Todos los campos son obligatorios');
+    const finalType = eventType === 'Otro' ? customEventType.trim() : eventType;
+
+    if (!finalType || !eventPriority || !eventDate) {
+      Alert.alert('Error', 'Todos los campos obligatorios deben estar completos');
       return;
     }
     try {
-      addEvent({ type: eventType, priority: eventPriority, date: eventDate });
+      addEvent({ 
+        type: finalType, 
+        description: eventDescription.trim(), 
+        priority: eventPriority, 
+        date: eventDate 
+      });
       setIsModalVisible(false);
+      
+      // Reset forms
+      setEventType('10k');
+      setCustomEventType('');
+      setEventDescription('');
+      
       loadEvents();
     } catch (err) {
       Alert.alert('Error', 'No se pudo guardar el evento');
@@ -167,13 +184,16 @@ export default function DashboardScreen({ navigation }: Props) {
             keyExtractor={(item) => item.id!.toString()}
             renderItem={({ item }) => (
               <View className="bg-gray-800 p-4 rounded-xl mb-4 flex-row justify-between items-center border border-gray-700">
-                <View>
+                <View className="flex-1 mr-4">
                   <Text className="text-white text-lg font-bold">{item.type}</Text>
-                  <Text className="text-gray-400">{item.date}</Text>
+                  {item.description ? (
+                    <Text className="text-gray-400 text-sm mb-1">{item.description}</Text>
+                  ) : null}
+                  <Text className="text-blue-400 font-semibold">{item.date}</Text>
                 </View>
                 <View className="flex-row items-center">
                   <View className="bg-gray-700 px-3 py-1 rounded-full mr-4">
-                    <Text className="text-blue-400 font-bold">Prioridad {item.priority}</Text>
+                    <Text className="text-blue-400 font-bold">{item.priority}</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)}>
                     <Text className="text-red-500 text-lg">🗑️</Text>
@@ -229,11 +249,11 @@ export default function DashboardScreen({ navigation }: Props) {
               <Text className="text-2xl text-white font-bold mb-6">Nuevo Evento</Text>
               
               <Text className="text-gray-400 mb-2">Tipo de Evento</Text>
-              <View className="flex-row justify-between mb-4">
-                {['10k', 'Maratón', 'Fuerza', 'Hyrox'].map(type => (
+              <View className="flex-row flex-wrap mb-4">
+                {EVENT_OPTIONS.map(type => (
                   <TouchableOpacity 
                     key={type}
-                    className={`px-3 py-2 rounded-lg ${eventType === type ? 'bg-blue-600' : 'bg-gray-700'}`}
+                    className={`px-3 py-2 rounded-lg mr-2 mb-2 ${eventType === type ? 'bg-blue-600' : 'bg-gray-700'}`}
                     onPress={() => {
                       Keyboard.dismiss();
                       setEventType(type);
@@ -243,6 +263,30 @@ export default function DashboardScreen({ navigation }: Props) {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {eventType === 'Otro' && (
+                <View className="mb-4">
+                  <Text className="text-gray-400 mb-2">Especifica el tipo de evento</Text>
+                  <TextInput
+                    className="bg-gray-700 text-white rounded-lg px-4 py-3"
+                    placeholder="Ej: Ultramaratón 100k"
+                    placeholderTextColor="#9ca3af"
+                    value={customEventType}
+                    onChangeText={setCustomEventType}
+                  />
+                </View>
+              )}
+
+              <Text className="text-gray-400 mb-2">Descripción o notas (Opcional)</Text>
+              <TextInput
+                className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
+                placeholder="Ej: Carrera en pista de tierra, desnivel 200m..."
+                placeholderTextColor="#9ca3af"
+                value={eventDescription}
+                onChangeText={setEventDescription}
+                multiline
+                numberOfLines={2}
+              />
 
               <Text className="text-gray-400 mb-2">Prioridad</Text>
               <View className="flex-row justify-between mb-6">
