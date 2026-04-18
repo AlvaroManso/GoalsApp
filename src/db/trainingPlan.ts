@@ -58,3 +58,33 @@ export const getAllTrainingPlan = (): PlanSession[] => {
     return [];
   }
 };
+
+export const updatePlanSessions = (updates: Partial<PlanSession> & { date: string }[]) => {
+  const db = getDB();
+  try {
+    db.withTransactionSync(() => {
+      updates.forEach(update => {
+        if (!update.date) return;
+        
+        let query = 'UPDATE TrainingPlan SET ';
+        const values: any[] = [];
+        const fields = [];
+
+        if (update.activityType !== undefined) { fields.push('activityType = ?'); values.push(update.activityType); }
+        if (update.durationMinutes !== undefined) { fields.push('durationMinutes = ?'); values.push(update.durationMinutes); }
+        if (update.targetHRZone !== undefined) { fields.push('targetHRZone = ?'); values.push(update.targetHRZone); }
+        if (update.coachNotes !== undefined) { fields.push('coachNotes = ?'); values.push(update.coachNotes); }
+
+        if (fields.length === 0) return;
+
+        query += fields.join(', ') + ' WHERE date = ?';
+        values.push(update.date);
+
+        db.runSync(query, values);
+      });
+    });
+  } catch (error) {
+    console.error('Error updating plan sessions:', error);
+    throw error;
+  }
+};

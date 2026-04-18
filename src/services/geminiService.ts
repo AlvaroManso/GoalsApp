@@ -31,6 +31,7 @@ interface GeneratePlanParams {
   runAvailability: number;
   strengthAvailability: number;
   equipment: string[];
+  userPreferences?: string;
 }
 
 export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<PlanSession[]> => {
@@ -47,6 +48,7 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
     const dynamicPrompt = `Atleta de ${params.age} años. FC Reposo: ${params.restingHR}. Fatiga: ${params.fatigue}/10. Dolor articular: ${params.jointPain}/10.
 Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${params.runAvailability} run, ${params.strengthAvailability} fuerza.
 Equipamiento disponible en el sitio: [${params.equipment.length > 0 ? params.equipment.join(', ') : 'Ninguno, solo exterior'}].
+${params.userPreferences ? `Preferencias y condiciones del usuario: "${params.userPreferences}"` : ''}
 Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
 
     console.log('Enviando prompt a Gemini:', dynamicPrompt);

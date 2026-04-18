@@ -7,13 +7,15 @@ export type RootStackParamList = {
   CheckIn: undefined;
   MainTabs: undefined;
   Tracker: undefined;
+  Profile: undefined;
 };
 
 export type BottomTabParamList = {
   Dashboard: undefined;
   Calendar: undefined;
-  Chat: undefined;
+  TrackerTab: undefined;
   History: undefined;
+  Chat: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = 

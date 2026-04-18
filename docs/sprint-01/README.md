@@ -1,49 +1,47 @@
-# Sprint 01: Inicialización y Core del Proyecto
+# Sprint 01: Setup, MVP & Refinements
 
-## Resumen del Sprint
-Durante este sprint fundacional, se ha implementado con éxito la base arquitectónica y funcional del "AI Hybrid Athlete Coach". El objetivo principal era establecer el stack tecnológico, el modelo de datos local, la integración con la IA de Google Gemini y las funcionalidades core de seguimiento y recolección de métricas.
+## 🎯 Objetivos del Sprint
+- Inicializar el proyecto con Expo, TypeScript, y NativeWind.
+- Configurar persistencia local con SQLite.
+- Implementar la arquitectura y las 4 fases principales del MVP (Onboarding, CRUD Eventos, Gemini AI, GPS Tracker).
+- Refinar la interfaz, añadir el modo claro/oscuro, centrar botones de navegación y mejorar la IA para que pueda modificar el plan.
 
-## Componentes y Funciones Implementadas
+## 🚀 Funcionalidades Implementadas
 
-### 1. Arquitectura y Stack Base
-- **Inicialización:** Proyecto creado con Expo SDK y TypeScript.
-- **UI/UX:** Configuración de `NativeWind` (TailwindCSS) para el manejo global de estilos en "Dark Mode".
-- **Almacenamiento:** Integración de `expo-sqlite` para almacenamiento persistente y `expo-secure-store` para salvaguardar credenciales.
-- **Navegación:** Implementación de `@react-navigation/native-stack` controlando el flujo inicial basado en el estado de la base de datos (Onboarding -> CheckIn -> Dashboard).
+### 1. Arquitectura y Base de Datos
+- **SQLite (`src/db/database.ts`)**: Migraciones dinámicas con bloque try/catch. Tablas para `UserProfile`, `DailyCheckin`, `Events`, `TrainingPlan` y `ActivityHistory`.
+- **Navegación (`AppNavigator.tsx`)**: Bottom Tabs Navigator rediseñado con un botón central flotante para el Tracker y la eliminación de librerías de iconos problemáticas (se usa `@expo/vector-icons`).
 
-### 2. Fase 1: Perfil Biométrico y Check-in Médico
-- `OnboardingScreen`: Captura de edad, peso, FC máxima y FC en reposo.
-- `physiology.ts`: Implementación de la fórmula de Karvonen para el cálculo de las 5 zonas de entrenamiento.
-- `CheckInScreen`: Interfaz diaria usando Sliders (`@react-native-community/slider`) para medir Fatiga y Dolor Articular.
-- **Lógica de Prevención:** Sistema de alertas y bloqueo de impacto basado en los niveles de dolor y fatiga.
+### 2. Fase 1: Perfil y Check-In
+- **Onboarding (`OnboardingScreen.tsx`)**: Recopila peso, altura, edad, nivel y FC en reposo.
+- **Check-In (`CheckInScreen.tsx`)**: Slider para fatiga, dolor articular y calidad de sueño. Totalmente compatible con el modo claro/oscuro.
+- **Perfil (`ProfileScreen.tsx`)**: Nueva pantalla accesible desde el menú superior para editar las métricas biométricas y alternar el tema visual de la aplicación.
 
-### 3. Fase 2: Gestor de Eventos
-- CRUD completo en SQLite (`src/db/events.ts`).
-- `DashboardScreen`: Interfaz principal con lista de eventos y modal para creación de nuevos eventos.
-- Componente nativo de calendario (`@react-native-community/datetimepicker`) para selección fácil y a prueba de errores de la fecha del evento.
-- Soporte para múltiples disciplinas deportivas incluyendo opciones personalizadas ("Otro") con campos de descripción.
-- Componentes visuales genéricos (`LoadingState`, `ErrorState`, `EmptyState`).
+### 3. Fase 2: Creador de Eventos
+- **Dashboard (`DashboardScreen.tsx`)**: Interfaz principal para añadir eventos (con selector nativo de fecha `DateTimePicker`). Permite eventos de carrera, ciclismo, triatlón y "Otro".
 
-### 4. Fase 3: Motor de IA (Gemini)
-- Integración de `@google/generative-ai` usando el modelo `gemini-1.5-pro-latest` con fallback en cascada hasta `1.5-flash` para evitar caídas de la API.
-- Generación de un **Macrociclo Anual (52 semanas / 364 días)** basado en eventos y métricas biométricas.
-- **Coach IA Chat:** Interfaz de chat (`ChatScreen.tsx`) que inyecta en el prompt de sistema todo el plan de 52 semanas para poder responder a cualquier duda contextual del atleta sobre sus próximos entrenamientos.
-- **Sanitizador JSON:** Función robusta con Regex (`src/utils/sanitizer.ts`) para prevenir crashes en el parseo de respuestas de la IA.
-- **Prompt Engineering:** Configuración de reglas inquebrantables (Método 80/20, Fatiga Cruzada, Tapering, Nutrición, Equipamiento Indoor).
+### 4. Fase 3: Motor IA (Google Gemini)
+- **Generación de Macrociclo**: Se envían datos de fatiga, eventos y preferencias del usuario para generar un plan estructurado en JSON de 52 semanas.
+- **Preferencias Pre-generación**: Se permite al usuario indicar el equipamiento indoor del que dispone y escribir texto libre (Ej: "En agosto hace calor en Sevilla, adapta los entrenos").
+- **Coach IA y Modificación de Plan (`ChatScreen.tsx`)**: Un chatbot que no solo responde preguntas leyendo las próximas 60 sesiones del plan, sino que además tiene la capacidad de emitir un JSON especial (`PLAN_UPDATE`) que la app interpreta para sobreescribir la base de datos (Ej: "Cambia todos los entrenamientos de fuerza a 5 repeticiones").
 
-### 5. Fase 4: Tracker de Entrenamiento e Historial
-- `TrackerScreen`: Pantalla de seguimiento en tiempo real con `expo-location`.
-- Cálculo dinámico de Distancia (Fórmula Haversine), Ritmo Actual, Ritmo Medio.
-- `HealthServiceMock`: Simulación de lecturas de hardware (pulsaciones) asumiendo `0` por defecto si no hay hardware conectado.
-- Cálculo de calorías usando fórmula científica (Keytel et al. 2005) combinando peso, edad, tiempo y pulsaciones (o estimación MET).
-- **Historial (Strava-like):** Pantalla nueva que lista todos los entrenamientos guardados dibujando un mapa de calor/ruta con `react-native-maps`.
+### 5. Fase 4: Tracker y Fisiología
+- **Tracker GPS (`TrackerScreen.tsx`)**: Mide distancia, ritmo medio, ritmo actual, tiempo y dibuja la ruta usando `expo-location`. 
+- **Fórmulas Médicas**: Cálculos realistas de gasto calórico basados en Keytel et al. (2005).
+- **Historial (`HistoryScreen.tsx`)**: Lista de entrenamientos guardados con un mini-mapa tipo Strava usando `react-native-maps`.
 
-## Lógica Interna y Decisiones Técnicas
-- **Seguridad:** La API Key de Gemini se almacena cifrada (`expo-secure-store`). Se implementó un fallback hardcodeado para uso personal del desarrollador.
-- **UI/UX Responsive:** Implementación de `ScrollView` y `KeyboardAvoidingView` para evitar roturas de diseño en dispositivos pequeños, además de un `Bottom Tab Navigator` para moverse de forma elegante entre las 4 secciones principales.
-- **Prevención de Crashes:** El parser de JSON y las llamadas a la IA están fuertemente protegidas con bloques `try-catch` y estados de UI para feedback al usuario. Se aplicaron migraciones seguras `ALTER TABLE` para evitar corrupción de la DB local durante las actualizaciones.
+### 6. Refinamientos de UI/UX
+- **Light/Dark Mode**: Integración total de la paleta de colores adaptable en toda la aplicación (Dashboard, Calendar, History, Chat, Tracker, Profile).
+- **Tracker Button**: Botón rojo flotante re-diseñado a un estilo indigo vibrante en el centro del Bottom Tab Navigator.
 
-## Áreas Pendientes y Mejoras Futuras (Sprint 02)
-- [ ] Reemplazar `HealthServiceMock` por integraciones reales con Apple Health / Google Fit.
-- [ ] Implementar un tracking de localización real en *background* (actualmente solo lee en *foreground* de manera efectiva).
-- [ ] Añadir gráficos de progreso y estadísticas globales en el Dashboard.
+## 🔧 Tecnologías Usadas
+- **React Native (Expo)**
+- **NativeWind (Tailwind CSS)**
+- **Google Generative AI SDK**
+- **Expo SQLite**
+- **Expo Location**
+- **React Native Maps**
+
+## 📋 Pendiente / Próximos Pasos
+- Sincronización real con Apple HealthKit/Google Fit para FC en vivo (actualmente se usa un Mock).
+- Exportación del plan de entrenamiento a .ics (Calendario del móvil).

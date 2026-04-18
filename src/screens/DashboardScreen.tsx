@@ -21,7 +21,7 @@ export default function DashboardScreen({ navigation }: Props) {
   // Modals
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isApiKeyModalVisible, setIsApiKeyModalVisible] = useState(false);
-  const [isEquipmentModalVisible, setIsEquipmentModalVisible] = useState(false);
+  const [isPreGenModalVisible, setIsPreGenModalVisible] = useState(false);
 
   // Form states
   const [eventType, setEventType] = useState('10k');
@@ -32,6 +32,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [equipment, setEquipment] = useState<string[]>([]);
+  const [userPreferences, setUserPreferences] = useState('');
 
   const EVENT_OPTIONS = ['10k', 'Media Maratón', 'Maratón', 'Triatlón', 'Ciclismo', 'Trail/Montaña', 'Fuerza', 'Hyrox', 'Otro'];
   const EQUIPMENT_OPTIONS = ['Cinta de Correr', 'Rodillo / Bici Estática', 'Piscina Infinita / Estática', 'Pesas / Gimnasio', 'Pista de Atletismo'];
@@ -135,7 +136,8 @@ export default function DashboardScreen({ navigation }: Props) {
         events: events,
         runAvailability: 4, // Harcodeado temporalmente
         strengthAvailability: 2, // Harcodeado temporalmente
-        equipment: equipment
+        equipment: equipment,
+        userPreferences: userPreferences
       });
 
       saveTrainingPlan(generatedPlan);
@@ -180,18 +182,18 @@ export default function DashboardScreen({ navigation }: Props) {
   if (isGeneratingPlan) return <LoadingState message={`🧠 Generando un MACROCICLO completo de 52 SEMANAS...\n(Esto puede tardar hasta 1 minuto)`} />;
 
   return (
-    <ScrollView className="flex-1 bg-gray-900 pt-12 px-4">
+    <ScrollView className="flex-1 bg-gray-50 dark:bg-gray-900 pt-12 px-4">
       <View className="flex-row justify-between items-center mb-8 pl-2">
-        <Text className="text-3xl text-white font-bold">Mis Eventos</Text>
+        <Text className="text-3xl text-gray-900 dark:text-white font-bold">Mis Eventos</Text>
         <View className="flex-row items-center">
           <TouchableOpacity 
-            className="bg-green-600 rounded-full w-10 h-10 items-center justify-center mr-3"
-            onPress={() => navigation.navigate('Tracker')}
+            className="bg-white dark:bg-gray-800 rounded-full w-10 h-10 items-center justify-center mr-3 border border-gray-200 dark:border-gray-700 shadow-sm"
+            onPress={() => navigation.navigate('Profile')}
           >
-            <Text className="text-white text-xl">🏃</Text>
+            <Text className="text-gray-900 dark:text-white text-xl">👤</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            className="bg-blue-600 rounded-full w-10 h-10 items-center justify-center"
+            className="bg-indigo-600 rounded-full w-10 h-10 items-center justify-center shadow-md shadow-indigo-500/30"
             onPress={() => setIsModalVisible(true)}
           >
             <Text className="text-white text-2xl font-bold">+</Text>
@@ -204,17 +206,17 @@ export default function DashboardScreen({ navigation }: Props) {
       ) : (
         <View className="mb-4">
           {events.map((item) => (
-            <View key={item.id} className="bg-gray-800 p-4 rounded-xl mb-4 flex-row justify-between items-center border border-gray-700">
+            <View key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 flex-row justify-between items-center border border-gray-200 dark:border-gray-700 shadow-sm">
               <View className="flex-1 mr-4">
-                <Text className="text-white text-lg font-bold">{item.type}</Text>
+                <Text className="text-gray-900 dark:text-white text-lg font-bold">{item.type}</Text>
                 {item.description ? (
-                  <Text className="text-gray-400 text-sm mb-1">{item.description}</Text>
+                  <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">{item.description}</Text>
                 ) : null}
-                <Text className="text-blue-400 font-semibold">{item.date}</Text>
+                <Text className="text-indigo-500 dark:text-indigo-400 font-semibold">{item.date}</Text>
               </View>
               <View className="flex-row items-center">
-                <View className="bg-gray-700 px-3 py-1 rounded-full mr-4">
-                  <Text className="text-blue-400 font-bold">{item.priority}</Text>
+                <View className="bg-indigo-50 dark:bg-gray-700 px-3 py-1 rounded-full mr-4 border border-indigo-100 dark:border-transparent">
+                  <Text className="text-indigo-600 dark:text-indigo-400 font-bold">{item.priority}</Text>
                 </View>
                 <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)}>
                   <Text className="text-red-500 text-lg">🗑️</Text>
@@ -235,31 +237,31 @@ export default function DashboardScreen({ navigation }: Props) {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          className="bg-gray-800 rounded-xl py-4 px-4 items-center border border-gray-700"
-          onPress={() => setIsEquipmentModalVisible(true)}
+          className="bg-white dark:bg-gray-800 rounded-xl py-4 px-4 items-center border border-gray-200 dark:border-gray-700 shadow-sm"
+          onPress={() => setIsPreGenModalVisible(true)}
         >
-          <Text className="text-white font-bold">⚙️ Eq. Indoor</Text>
+          <Text className="text-gray-800 dark:text-white font-bold">⚙️ Preferencias</Text>
         </TouchableOpacity>
       </View>
 
       {/* Render AI Plan Result (Preview only 5 days) */}
       {plan.length > 0 && (
         <View className="mb-8 pl-2">
-          <Text className="text-xl text-white font-bold mb-2">Preview Próximos Entrenos</Text>
-          <Text className="text-gray-400 mb-4 text-sm">Abre la pestaña Calendario para ver las 52 semanas.</Text>
+          <Text className="text-xl text-gray-900 dark:text-white font-bold mb-2">Preview Próximos Entrenos</Text>
+          <Text className="text-gray-500 dark:text-gray-400 mb-4 text-sm">Abre la pestaña Calendario para ver las 52 semanas.</Text>
           
           {plan.slice(0, 5).map((item, index) => (
-            <View key={index} className="bg-gray-800 p-4 rounded-xl mb-4 border border-indigo-900">
+            <View key={index} className="bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 border border-indigo-200 dark:border-indigo-900 shadow-sm">
               <View className="flex-row justify-between items-center mb-2">
-                <Text className="text-white font-bold text-lg">{item.date} - {item.activityType}</Text>
+                <Text className="text-gray-900 dark:text-white font-bold text-lg">{item.date} - {item.activityType}</Text>
                 {item.durationMinutes > 0 && (
-                  <Text className="text-indigo-400 font-bold">{item.durationMinutes} min</Text>
+                  <Text className="text-indigo-600 dark:text-indigo-400 font-bold">{item.durationMinutes} min</Text>
                 )}
               </View>
               {item.targetHRZone && (
-                <Text className="text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
+                <Text className="text-indigo-500 dark:text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
               )}
-              <Text className="text-gray-400">{item.coachNotes}</Text>
+              <Text className="text-gray-600 dark:text-gray-400">{item.coachNotes}</Text>
             </View>
           ))}
         </View>
@@ -426,44 +428,59 @@ export default function DashboardScreen({ navigation }: Props) {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* Modal para Seleccionar Equipamiento Indoor */}
-      <Modal visible={isEquipmentModalVisible} animationType="slide" transparent>
-        <TouchableWithoutFeedback onPress={() => setIsEquipmentModalVisible(false)}>
+      {/* Modal para Seleccionar Equipamiento y Preferencias */}
+      <Modal visible={isPreGenModalVisible} animationType="slide" transparent>
+        <TouchableWithoutFeedback onPress={() => setIsPreGenModalVisible(false)}>
           <View className="flex-1 justify-end bg-black/80">
             <TouchableWithoutFeedback>
-              <View className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700">
-                <Text className="text-2xl text-white font-bold mb-2">Equipamiento Indoor</Text>
-                <Text className="text-gray-400 mb-6">
-                  Selecciona el equipamiento del que dispones. La IA lo tendrá en cuenta para generar alternativas si hay fatiga o mal clima.
-                </Text>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700 max-h-[80%]">
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  <Text className="text-2xl text-white font-bold mb-2">Preferencias IA</Text>
+                  <Text className="text-gray-400 mb-6">
+                    Ajusta tus preferencias antes de generar el plan.
+                  </Text>
 
-                <View className="mb-6">
-                  {EQUIPMENT_OPTIONS.map((item) => {
-                    const isSelected = equipment.includes(item);
-                    return (
-                      <TouchableOpacity
-                        key={item}
-                        onPress={() => handleToggleEquipment(item)}
-                        className={`flex-row justify-between items-center p-4 mb-2 rounded-xl border ${
-                          isSelected ? 'bg-indigo-600/20 border-indigo-500' : 'bg-gray-700 border-gray-600'
-                        }`}
-                      >
-                        <Text className={`font-bold ${isSelected ? 'text-indigo-400' : 'text-gray-300'}`}>
-                          {item}
-                        </Text>
-                        {isSelected && <Text className="text-indigo-400 font-bold">✓</Text>}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                  <Text className="text-white font-bold text-lg mb-2">Anotaciones Adicionales</Text>
+                  <TextInput
+                    className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-6"
+                    placeholder="Ej: En Sevilla hace mucho calor en verano, o prefiero fuerza al fallo 5 repeticiones..."
+                    placeholderTextColor="#9ca3af"
+                    value={userPreferences}
+                    onChangeText={setUserPreferences}
+                    multiline
+                    numberOfLines={3}
+                    style={{ textAlignVertical: 'top' }}
+                  />
 
-                <TouchableOpacity 
-                  className="bg-indigo-600 py-4 rounded-xl items-center"
-                  onPress={() => setIsEquipmentModalVisible(false)}
-                >
-                  <Text className="text-white font-bold">Aceptar</Text>
-                </TouchableOpacity>
-              </View>
+                  <Text className="text-white font-bold text-lg mb-2">Equipamiento Indoor</Text>
+                  <View className="mb-6">
+                    {EQUIPMENT_OPTIONS.map((item) => {
+                      const isSelected = equipment.includes(item);
+                      return (
+                        <TouchableOpacity
+                          key={item}
+                          onPress={() => handleToggleEquipment(item)}
+                          className={`flex-row justify-between items-center p-4 mb-2 rounded-xl border ${
+                            isSelected ? 'bg-indigo-600/20 border-indigo-500' : 'bg-gray-700 border-gray-600'
+                          }`}
+                        >
+                          <Text className={`font-bold ${isSelected ? 'text-indigo-400' : 'text-gray-300'}`}>
+                            {item}
+                          </Text>
+                          {isSelected && <Text className="text-indigo-400 font-bold">✓</Text>}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <TouchableOpacity 
+                    className="bg-indigo-600 py-4 rounded-xl items-center mb-6"
+                    onPress={() => setIsPreGenModalVisible(false)}
+                  >
+                    <Text className="text-white font-bold">Guardar y Cerrar</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </KeyboardAvoidingView>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>

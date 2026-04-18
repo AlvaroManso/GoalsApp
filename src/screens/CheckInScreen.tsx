@@ -37,15 +37,20 @@ export default function CheckInScreen({ navigation }: Props) {
   };
 
   return (
-    <View className="flex-1 bg-gray-900 px-6 py-12 justify-center">
-      <Text className="text-3xl text-white font-bold mb-8 text-center">Check-in Diario</Text>
-      
-      <View className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-gray-50 dark:bg-gray-900"
+    >
+      <ScrollView className="flex-1 px-6 pt-16">
+        <Text className="text-3xl text-gray-900 dark:text-white font-bold mb-2">Check-in Diario</Text>
+        <Text className="text-gray-500 dark:text-gray-400 mb-8 text-lg">¿Cómo te sientes hoy?</Text>
+
         <View className="mb-8">
-          <Text className="text-white text-lg font-semibold mb-2">
-            Nivel de Fatiga: <Text className="text-blue-400 font-bold">{fatigue}</Text>/10
-          </Text>
-          <Text className="text-gray-400 text-sm mb-4">1 = Muy fresco, 10 = Exhausto</Text>
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-gray-900 dark:text-white font-semibold text-lg">Nivel de Fatiga</Text>
+            <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">{fatigue}/10</Text>
+          </View>
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-4">1 = Fresco como una lechuga, 10 = Destruido</Text>
           <Slider
             style={{ width: '100%', height: 40 }}
             minimumValue={1}
@@ -53,17 +58,18 @@ export default function CheckInScreen({ navigation }: Props) {
             step={1}
             value={fatigue}
             onValueChange={setFatigue}
-            minimumTrackTintColor="#3b82f6"
-            maximumTrackTintColor="#4b5563"
-            thumbTintColor="#60a5fa"
+            minimumTrackTintColor="#4f46e5"
+            maximumTrackTintColor="#374151"
+            thumbTintColor="#4f46e5"
           />
         </View>
 
         <View className="mb-8">
-          <Text className="text-white text-lg font-semibold mb-2">
-            Dolor Articular: <Text className="text-red-400 font-bold">{jointPain}</Text>/10
-          </Text>
-          <Text className="text-gray-400 text-sm mb-4">1 = Sin dolor, 10 = Dolor severo</Text>
+          <View className="flex-row justify-between mb-2">
+            <Text className="text-gray-900 dark:text-white font-semibold text-lg">Dolor Articular</Text>
+            <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">{jointPain}/10</Text>
+          </View>
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-4">1 = Sin dolor, 10 = Lesión aguda</Text>
           <Slider
             style={{ width: '100%', height: 40 }}
             minimumValue={1}
@@ -71,19 +77,40 @@ export default function CheckInScreen({ navigation }: Props) {
             step={1}
             value={jointPain}
             onValueChange={setJointPain}
-            minimumTrackTintColor="#ef4444"
-            maximumTrackTintColor="#4b5563"
-            thumbTintColor="#f87171"
+            minimumTrackTintColor="#4f46e5"
+            maximumTrackTintColor="#374151"
+            thumbTintColor="#4f46e5"
           />
         </View>
 
+        <View className="mb-8">
+          <Text className="text-gray-900 dark:text-white font-semibold text-lg mb-4">¿Dormiste bien?</Text>
+          <View className="flex-row justify-between">
+            {['Terrible', 'Regular', 'Bien', 'Excelente'].map(quality => (
+              <TouchableOpacity
+                key={quality}
+                onPress={() => setSleepQuality(quality)}
+                className={`flex-1 mx-1 p-3 rounded-xl items-center border ${
+                  sleepQuality === quality 
+                    ? 'bg-indigo-600 border-indigo-500 shadow-md shadow-indigo-500/30' 
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm'
+                }`}
+              >
+                <Text className={sleepQuality === quality ? 'text-white font-bold' : 'text-gray-600 dark:text-gray-400'}>
+                  {quality}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <TouchableOpacity 
-          className="bg-blue-600 rounded-xl py-4 items-center mt-4"
+          className="bg-indigo-600 py-4 rounded-xl items-center mb-10 shadow-lg shadow-indigo-500/50"
           onPress={handleSave}
         >
           <Text className="text-white font-bold text-lg">Registrar y Continuar</Text>
         </TouchableOpacity>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

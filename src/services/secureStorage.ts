@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 const GEMINI_API_KEY_KEY = 'GEMINI_API_KEY';
-const DEFAULT_API_KEY = 'AIzaSyAJyNASKu2yFNOXcjjUW8dLl63lFG9uaqY';
+const DEFAULT_API_KEY = 'AIzaSyCGXRqJJz4vbVAaroc8uwuH_YG6RzwF7uU';
 
 export const saveApiKey = async (key: string): Promise<void> => {
   try {

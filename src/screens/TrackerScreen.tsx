@@ -143,6 +143,14 @@ export default function TrackerScreen({ navigation }: Props) {
     }
   };
 
+  const handleExit = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('MainTabs');
+    }
+  };
+
   const stopTracking = () => {
     setIsTracking(false);
     
@@ -173,11 +181,11 @@ export default function TrackerScreen({ navigation }: Props) {
         routeCoordinates: JSON.stringify(routeCoords)
       });
       Alert.alert('¡Buen Trabajo!', 'Tu entrenamiento ha sido guardado en el historial.', [
-        { text: 'Ok', onPress: () => navigation.goBack() }
+        { text: 'Ok', onPress: handleExit }
       ]);
     } else {
       Alert.alert('Actividad Corta', 'El entrenamiento fue muy corto y no se guardó.', [
-        { text: 'Ok', onPress: () => navigation.goBack() }
+        { text: 'Ok', onPress: handleExit }
       ]);
     }
   };
@@ -194,56 +202,56 @@ export default function TrackerScreen({ navigation }: Props) {
   };
 
   return (
-    <View className="flex-1 bg-gray-900 pt-12 px-6">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-900 pt-12 px-6">
       <View className="flex-row justify-between items-center mb-8">
-        <Text className="text-3xl text-white font-bold">Tracker</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text className="text-blue-400 font-bold">Cerrar</Text>
+        <Text className="text-3xl text-gray-900 dark:text-white font-bold">Tracker</Text>
+        <TouchableOpacity onPress={handleExit}>
+          <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">Cerrar</Text>
         </TouchableOpacity>
       </View>
 
-      <View className="bg-gray-800 rounded-3xl p-8 mb-8 items-center border border-gray-700 shadow-xl shadow-black">
-        <Text className="text-gray-400 text-lg uppercase tracking-widest mb-2">Distancia</Text>
-        <Text className="text-white text-6xl font-black mb-1">
-          {distanceKm.toFixed(2)} <Text className="text-2xl text-gray-500">km</Text>
+      <View className="bg-white dark:bg-gray-800 rounded-3xl p-8 mb-8 items-center border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-xl dark:shadow-black">
+        <Text className="text-gray-500 dark:text-gray-400 text-lg uppercase tracking-widest mb-2">Distancia</Text>
+        <Text className="text-gray-900 dark:text-white text-6xl font-black mb-1">
+          {distanceKm.toFixed(2)} <Text className="text-2xl text-gray-400 dark:text-gray-500">km</Text>
         </Text>
       </View>
 
       <View className="flex-row flex-wrap justify-between">
         {/* Tiempo */}
-        <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-700">
-          <Text className="text-gray-400 text-sm mb-1">Tiempo</Text>
-          <Text className="text-white text-2xl font-bold">{formatTime(timeSeconds)}</Text>
+        <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">Tiempo</Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{formatTime(timeSeconds)}</Text>
         </View>
 
         {/* Ritmo Actual */}
-        <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-700">
-          <Text className="text-gray-400 text-sm mb-1">Ritmo Actual</Text>
-          <Text className="text-white text-2xl font-bold">{currentPace} <Text className="text-sm font-normal text-gray-500">/km</Text></Text>
+        <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">Ritmo Actual</Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{currentPace} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">/km</Text></Text>
         </View>
 
         {/* Ritmo Medio */}
-        <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-700">
-          <Text className="text-gray-400 text-sm mb-1">Ritmo Medio</Text>
-          <Text className="text-white text-2xl font-bold">{avgPace} <Text className="text-sm font-normal text-gray-500">/km</Text></Text>
+        <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-1">Ritmo Medio</Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{avgPace} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">/km</Text></Text>
         </View>
 
         {/* Calorías */}
-        <View className="bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-orange-900/50">
-          <Text className="text-orange-400 text-sm mb-1">🔥 Calorías</Text>
-          <Text className="text-white text-2xl font-bold">{Math.floor(calories)} <Text className="text-sm font-normal text-gray-500">kcal</Text></Text>
+        <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-[48%] mb-4 border border-orange-100 dark:border-orange-900/50 shadow-sm">
+          <Text className="text-orange-500 dark:text-orange-400 text-sm mb-1">🔥 Calorías</Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{Math.floor(calories)} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">kcal</Text></Text>
         </View>
 
         {/* FC (Mock) */}
-        <View className="bg-gray-800 rounded-2xl p-4 w-full mb-4 border border-red-900/50">
-          <Text className="text-red-400 text-sm mb-1 flex-row items-center">❤ FC Actual</Text>
-          <Text className="text-white text-2xl font-bold">{biometrics.currentHR > 0 ? biometrics.currentHR : '--'} <Text className="text-sm font-normal text-gray-500">ppm</Text></Text>
+        <View className="bg-white dark:bg-gray-800 rounded-2xl p-4 w-full mb-4 border border-red-100 dark:border-red-900/50 shadow-sm">
+          <Text className="text-red-500 dark:text-red-400 text-sm mb-1 flex-row items-center">❤ FC Actual</Text>
+          <Text className="text-gray-900 dark:text-white text-2xl font-bold">{biometrics.currentHR > 0 ? biometrics.currentHR : '--'} <Text className="text-sm font-normal text-gray-400 dark:text-gray-500">ppm</Text></Text>
         </View>
       </View>
 
       <View className="flex-1 justify-end pb-8">
         <TouchableOpacity 
-          className={`rounded-full py-5 items-center shadow-lg ${isTracking ? 'bg-red-600 shadow-red-500/50' : 'bg-blue-600 shadow-blue-500/50'}`}
+          className={`rounded-full py-5 items-center shadow-lg ${isTracking ? 'bg-red-500 shadow-red-500/50' : 'bg-indigo-600 shadow-indigo-500/50'}`}
           onPress={handleToggleTracking}
         >
           <Text className="text-white font-black text-xl uppercase tracking-widest">

@@ -74,8 +74,8 @@ export default function CalendarScreen({ navigation }: Props) {
   const selectedEvents = getEventsForDate(selectedDate);
 
   return (
-    <View className="flex-1 bg-gray-900 pt-12 px-4">
-      <Text className="text-3xl text-white font-bold mb-6">Calendario</Text>
+    <View className="flex-1 bg-gray-50 dark:bg-gray-900 pt-12 px-4">
+      <Text className="text-3xl text-gray-900 dark:text-white font-bold mb-6">Calendario</Text>
 
       <Calendar
         current={selectedDate}
@@ -109,36 +109,36 @@ export default function CalendarScreen({ navigation }: Props) {
       />
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <Text className="text-xl text-white font-bold mb-4">Detalle: {selectedDate}</Text>
+        <Text className="text-xl text-gray-900 dark:text-white font-bold mb-4">Detalle: {selectedDate}</Text>
 
         {selectedEvents.length > 0 && (
           <View className="mb-4">
-            <Text className="text-red-400 font-bold mb-2">🏁 EVENTOS HOY:</Text>
+            <Text className="text-red-500 dark:text-red-400 font-bold mb-2">🏁 EVENTOS HOY:</Text>
             {selectedEvents.map((e, idx) => (
-              <View key={idx} className="bg-red-900/30 p-4 rounded-xl border border-red-800 mb-2">
-                <Text className="text-white font-bold">{e.type} (Prioridad {e.priority})</Text>
-                {e.description ? <Text className="text-gray-300 text-sm">{e.description}</Text> : null}
+              <View key={idx} className="bg-red-50 dark:bg-red-900/30 p-4 rounded-xl border border-red-200 dark:border-red-800 mb-2">
+                <Text className="text-gray-900 dark:text-white font-bold">{e.type} (Prioridad {e.priority})</Text>
+                {e.description ? <Text className="text-gray-600 dark:text-gray-300 text-sm">{e.description}</Text> : null}
               </View>
             ))}
           </View>
         )}
 
         {selectedSession ? (
-          <View className="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-6">
+          <View className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
             <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-white font-bold text-lg">{selectedSession.activityType}</Text>
+              <Text className="text-gray-900 dark:text-white font-bold text-lg">{selectedSession.activityType}</Text>
               {selectedSession.durationMinutes > 0 && (
-                <Text className="text-indigo-400 font-bold">{selectedSession.durationMinutes} min</Text>
+                <Text className="text-indigo-600 dark:text-indigo-400 font-bold">{selectedSession.durationMinutes} min</Text>
               )}
             </View>
             {selectedSession.targetHRZone && (
-              <Text className="text-blue-400 font-semibold mb-2">Zona: {selectedSession.targetHRZone}</Text>
+              <Text className="text-blue-600 dark:text-blue-400 font-semibold mb-2">Zona: {selectedSession.targetHRZone}</Text>
             )}
-            <Text className="text-gray-400 leading-5">{selectedSession.coachNotes}</Text>
+            <Text className="text-gray-600 dark:text-gray-400 leading-5">{selectedSession.coachNotes}</Text>
           </View>
         ) : (
-          <View className="bg-gray-800 p-6 rounded-xl items-center justify-center border border-gray-700 border-dashed">
-            <Text className="text-gray-500">No hay entrenamiento programado para este día.</Text>
+          <View className="bg-white dark:bg-gray-800 p-6 rounded-xl items-center justify-center border border-gray-300 dark:border-gray-700 border-dashed">
+            <Text className="text-gray-500 dark:text-gray-400">No hay entrenamiento programado para este día.</Text>
           </View>
         )}
       </ScrollView>
