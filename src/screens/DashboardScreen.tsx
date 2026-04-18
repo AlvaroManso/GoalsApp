@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import { RootStackScreenProps } from '../types/navigation';
+import { TabScreenProps } from '../types/navigation';
 import { getEvents, addEvent, deleteEvent, AppEvent } from '../db/events';
 import { getDB } from '../db/database';
 import { LoadingState, ErrorState, EmptyState } from '../components/UIStates';
 import { generateWeeklyPlan, PlanSession } from '../services/geminiService';
 import { saveApiKey, getApiKey } from '../services/secureStorage';
+import { saveTrainingPlan, getAllTrainingPlan } from '../db/trainingPlan';
 
-type Props = RootStackScreenProps<'Dashboard'>;
+type Props = TabScreenProps<'Dashboard'>;
 
 export default function DashboardScreen({ navigation }: Props) {
   const [events, setEvents] = useState<AppEvent[]>([]);
@@ -39,6 +40,12 @@ export default function DashboardScreen({ navigation }: Props) {
       setIsError(false);
       const data = getEvents();
       setEvents(data);
+
+      // Cargar plan guardado si existe
+      const savedPlan = getAllTrainingPlan();
+      if (savedPlan && savedPlan.length > 0) {
+        setPlan(savedPlan);
+      }
     } catch (err) {
       setIsError(true);
     } finally {
@@ -128,7 +135,11 @@ export default function DashboardScreen({ navigation }: Props) {
         equipment: equipment
       });
 
-      setPlan(generatedPlan);
+      saveTrainingPlan(generatedPlan);
+      const newPlan = getAllTrainingPlan();
+      setPlan(newPlan);
+      
+      Alert.alert('Éxito', '¡Se ha generado y guardado un macrociclo de 52 semanas! Revisa la pestaña de Calendario.');
     } catch (error: any) {
       console.error('Error in handleGeneratePlan:', error);
       Alert.alert('Error', error.message || 'No se pudo generar el plan con la IA.');
@@ -163,7 +174,7 @@ export default function DashboardScreen({ navigation }: Props) {
 
   if (isLoading) return <LoadingState message="Cargando eventos..." />;
   if (isError) return <ErrorState message="No se pudieron cargar tus eventos. Intenta de nuevo." />;
-  if (isGeneratingPlan) return <LoadingState message="La IA está generando tu plan semanal perfecto..." />;
+  if (isGeneratingPlan) return <LoadingState message="🧠 Generando un MACROCICLO completo de 52 SEMANAS...\n(Esto puede tardar hasta 1 minuto)" />;
 
   return (
     <View className="flex-1 bg-gray-900 pt-12 px-6">
@@ -232,17 +243,18 @@ export default function DashboardScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Render AI Plan Result */}
+      {/* Render AI Plan Result (Preview only 5 days) */}
       {plan.length > 0 && (
         <View className="flex-1 mt-6">
-          <Text className="text-xl text-white font-bold mb-4">Tu Plan Semanal</Text>
+          <Text className="text-xl text-white font-bold mb-4">Preview de Próximos Entrenamientos</Text>
+          <Text className="text-gray-400 mb-4 text-sm">Abre la pestaña del Calendario para ver las 52 semanas.</Text>
           <FlatList
-            data={plan}
+            data={plan.slice(0, 5)}
             keyExtractor={(item, index) => index.toString()}
             renderItem={({ item }) => (
               <View className="bg-gray-800 p-4 rounded-xl mb-4 border border-indigo-900">
                 <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-white font-bold text-lg">Día {item.dayOfWeek} - {item.activityType}</Text>
+                  <Text className="text-white font-bold text-lg">{item.date} - {item.activityType}</Text>
                   {item.durationMinutes > 0 && (
                     <Text className="text-indigo-400 font-bold">{item.durationMinutes} min</Text>
                   )}

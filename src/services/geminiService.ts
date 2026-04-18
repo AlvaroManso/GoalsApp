@@ -2,17 +2,20 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getApiKey } from './secureStorage';
 import { parseAIResponse } from '../utils/sanitizer';
 
-const SYSTEM_PROMPT = `Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un plan semanal estructurado en formato JSON puro.
+const SYSTEM_PROMPT = `Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un macrociclo de entrenamiento para las próximas 52 semanas (1 año completo) estructurado en formato JSON puro.
 REGLAS FISIOLÓGICAS INQUEBRANTABLES:
 1. Método 80/20: El 80% del volumen de carrera debe ser en Z1/Z2 (Conversacional). Solo el 20% en Z4/Z5 (Series).
 2. Fatiga Cruzada: NUNCA programes una Tirada Larga de carrera el día posterior a un entrenamiento pesado de Fuerza o Hyrox.
-3. Tapering: Si hay un evento Prioridad A en los próximos 14 días, reduce el volumen de entrenamiento un 30-50% progresivamente.
+3. Tapering: Si hay un evento Prioridad A programado, reduce el volumen de entrenamiento un 30-50% progresivamente las 2 semanas previas.
 4. Nutrición: Para sesiones de duración > 90 minutos, incluye una nota: 'Ingerir 40-60g CH/hora y 500ml agua con electrolitos/hora'.
 5. Equipamiento: Si el usuario indica que dispone de equipamiento de interior (cinta, rodillo/bici, piscina), siéntete libre de programar sesiones específicas usando ese equipo, especialmente útil para recuperación o si la fatiga de impacto es alta.
-FORMATO JSON REQUERIDO: Devuelve estrictamente un array de objetos. Estructura: 'dayOfWeek' (number 1-7), 'activityType' (string: Run, Treadmill, Cycling, Strength, Rest, Crosstraining, Swimming), 'durationMinutes' (number), 'targetHRZone' (string) y 'coachNotes' (string).`;
+FORMATO JSON REQUERIDO: Devuelve estrictamente un array de objetos. Estructura para cada día del año: 'weekNumber' (number 1-52), 'dayOfWeek' (number 1-7), 'activityType' (string: Run, Treadmill, Cycling, Strength, Rest, Crosstraining, Swimming), 'durationMinutes' (number), 'targetHRZone' (string) y 'coachNotes' (string). 
+Deben ser exactamente 364 objetos (52 semanas * 7 días).`;
 
 export interface PlanSession {
+  weekNumber: number;
   dayOfWeek: number;
+  date?: string; // Lo calcularemos y asignaremos después
   activityType: string;
   durationMinutes: number;
   targetHRZone: string;
@@ -42,9 +45,9 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
     const eventsList = params.events.map(e => `${e.type} (Prioridad ${e.priority}) el ${e.date}`).join(', ');
 
     const dynamicPrompt = `Atleta de ${params.age} años. FC Reposo: ${params.restingHR}. Fatiga: ${params.fatigue}/10. Dolor articular: ${params.jointPain}/10.
-Eventos próximos: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${params.runAvailability} run, ${params.strengthAvailability} fuerza.
+Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${params.runAvailability} run, ${params.strengthAvailability} fuerza.
 Equipamiento disponible en el sitio: [${params.equipment.length > 0 ? params.equipment.join(', ') : 'Ninguno, solo exterior'}].
-Genera el plan de entrenamiento en JSON.`;
+Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
 
     console.log('Enviando prompt a Gemini:', dynamicPrompt);
 

@@ -27,7 +27,7 @@ export default function CheckInScreen({ navigation }: Props) {
         readiness.canRun ? '¡A Entrenar!' : 'Alerta de Descanso',
         `${readiness.message}\n\n${readiness.suggestion}`,
         [
-          { text: 'Ir al Dashboard', onPress: () => navigation.replace('Dashboard') }
+          { text: 'Ir al Dashboard', onPress: () => navigation.replace('MainTabs') }
         ]
       );
     } catch (error) {
