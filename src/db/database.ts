@@ -41,6 +41,17 @@ export const initDB = () => {
         targetHRZone TEXT,
         coachNotes TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS ActivityHistory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        durationMinutes INTEGER,
+        distanceKm REAL,
+        avgPace TEXT,
+        calories INTEGER,
+        avgHR INTEGER,
+        routeCoordinates TEXT
+      );
     `);
 
     // Intentamos añadir la columna 'description' si la tabla ya existía de antes y no la tiene.

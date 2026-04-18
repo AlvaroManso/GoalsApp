@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { TabScreenProps } from '../types/navigation';
 import { getEvents, addEvent, deleteEvent, AppEvent } from '../db/events';
 import { getDB } from '../db/database';
@@ -27,7 +28,8 @@ export default function DashboardScreen({ navigation }: Props) {
   const [customEventType, setCustomEventType] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [eventPriority, setEventPriority] = useState('A');
-  const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
+  const [eventDate, setEventDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
   const [equipment, setEquipment] = useState<string[]>([]);
 
@@ -69,7 +71,7 @@ export default function DashboardScreen({ navigation }: Props) {
         type: finalType, 
         description: eventDescription.trim(), 
         priority: eventPriority, 
-        date: eventDate 
+        date: eventDate.toISOString().split('T')[0] 
       });
       setIsModalVisible(false);
       
@@ -77,6 +79,7 @@ export default function DashboardScreen({ navigation }: Props) {
       setEventType('10k');
       setCustomEventType('');
       setEventDescription('');
+      setEventDate(new Date());
       
       loadEvents();
     } catch (err) {
@@ -174,11 +177,11 @@ export default function DashboardScreen({ navigation }: Props) {
 
   if (isLoading) return <LoadingState message="Cargando eventos..." />;
   if (isError) return <ErrorState message="No se pudieron cargar tus eventos. Intenta de nuevo." />;
-  if (isGeneratingPlan) return <LoadingState message="🧠 Generando un MACROCICLO completo de 52 SEMANAS...\n(Esto puede tardar hasta 1 minuto)" />;
+  if (isGeneratingPlan) return <LoadingState message={`🧠 Generando un MACROCICLO completo de 52 SEMANAS...\n(Esto puede tardar hasta 1 minuto)`} />;
 
   return (
-    <View className="flex-1 bg-gray-900 pt-12 px-6">
-      <View className="flex-row justify-between items-center mb-8">
+    <ScrollView className="flex-1 bg-gray-900 pt-12 px-4">
+      <View className="flex-row justify-between items-center mb-8 pl-2">
         <Text className="text-3xl text-white font-bold">Mis Eventos</Text>
         <View className="flex-row items-center">
           <TouchableOpacity 
@@ -199,35 +202,31 @@ export default function DashboardScreen({ navigation }: Props) {
       {events.length === 0 ? (
         <EmptyState message="No tienes eventos programados. ¡Añade tu primer evento!" />
       ) : (
-        <View style={{ height: 200 }}>
-          <FlatList
-            data={events}
-            keyExtractor={(item) => item.id!.toString()}
-            renderItem={({ item }) => (
-              <View className="bg-gray-800 p-4 rounded-xl mb-4 flex-row justify-between items-center border border-gray-700">
-                <View className="flex-1 mr-4">
-                  <Text className="text-white text-lg font-bold">{item.type}</Text>
-                  {item.description ? (
-                    <Text className="text-gray-400 text-sm mb-1">{item.description}</Text>
-                  ) : null}
-                  <Text className="text-blue-400 font-semibold">{item.date}</Text>
-                </View>
-                <View className="flex-row items-center">
-                  <View className="bg-gray-700 px-3 py-1 rounded-full mr-4">
-                    <Text className="text-blue-400 font-bold">{item.priority}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)}>
-                    <Text className="text-red-500 text-lg">🗑️</Text>
-                  </TouchableOpacity>
-                </View>
+        <View className="mb-4">
+          {events.map((item) => (
+            <View key={item.id} className="bg-gray-800 p-4 rounded-xl mb-4 flex-row justify-between items-center border border-gray-700">
+              <View className="flex-1 mr-4">
+                <Text className="text-white text-lg font-bold">{item.type}</Text>
+                {item.description ? (
+                  <Text className="text-gray-400 text-sm mb-1">{item.description}</Text>
+                ) : null}
+                <Text className="text-blue-400 font-semibold">{item.date}</Text>
               </View>
-            )}
-          />
+              <View className="flex-row items-center">
+                <View className="bg-gray-700 px-3 py-1 rounded-full mr-4">
+                  <Text className="text-blue-400 font-bold">{item.priority}</Text>
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteEvent(item.id!)}>
+                  <Text className="text-red-500 text-lg">🗑️</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
         </View>
       )}
 
       {/* IA Plan Generator Section */}
-      <View className="flex-row justify-between items-center mt-6 mb-2">
+      <View className="flex-row justify-between items-center mt-2 mb-4 pl-2">
         <TouchableOpacity 
           className="bg-indigo-600 rounded-xl py-4 items-center shadow-lg shadow-indigo-500/50 flex-1 mr-2"
           onPress={handleGeneratePlan}
@@ -245,27 +244,24 @@ export default function DashboardScreen({ navigation }: Props) {
 
       {/* Render AI Plan Result (Preview only 5 days) */}
       {plan.length > 0 && (
-        <View className="flex-1 mt-6">
-          <Text className="text-xl text-white font-bold mb-4">Preview de Próximos Entrenamientos</Text>
-          <Text className="text-gray-400 mb-4 text-sm">Abre la pestaña del Calendario para ver las 52 semanas.</Text>
-          <FlatList
-            data={plan.slice(0, 5)}
-            keyExtractor={(item, index) => index.toString()}
-            renderItem={({ item }) => (
-              <View className="bg-gray-800 p-4 rounded-xl mb-4 border border-indigo-900">
-                <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-white font-bold text-lg">{item.date} - {item.activityType}</Text>
-                  {item.durationMinutes > 0 && (
-                    <Text className="text-indigo-400 font-bold">{item.durationMinutes} min</Text>
-                  )}
-                </View>
-                {item.targetHRZone && (
-                  <Text className="text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
+        <View className="mb-8 pl-2">
+          <Text className="text-xl text-white font-bold mb-2">Preview Próximos Entrenos</Text>
+          <Text className="text-gray-400 mb-4 text-sm">Abre la pestaña Calendario para ver las 52 semanas.</Text>
+          
+          {plan.slice(0, 5).map((item, index) => (
+            <View key={index} className="bg-gray-800 p-4 rounded-xl mb-4 border border-indigo-900">
+              <View className="flex-row justify-between items-center mb-2">
+                <Text className="text-white font-bold text-lg">{item.date} - {item.activityType}</Text>
+                {item.durationMinutes > 0 && (
+                  <Text className="text-indigo-400 font-bold">{item.durationMinutes} min</Text>
                 )}
-                <Text className="text-gray-400">{item.coachNotes}</Text>
               </View>
-            )}
-          />
+              {item.targetHRZone && (
+                <Text className="text-blue-400 font-semibold mb-2">Zona: {item.targetHRZone}</Text>
+              )}
+              <Text className="text-gray-400">{item.coachNotes}</Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -335,14 +331,33 @@ export default function DashboardScreen({ navigation }: Props) {
                 ))}
               </View>
 
-              <Text className="text-gray-400 mb-2">Fecha (YYYY-MM-DD)</Text>
-              <TextInput
-                className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-8"
-                placeholder="2026-10-15"
-                placeholderTextColor="#9ca3af"
-                value={eventDate}
-                onChangeText={setEventDate}
-              />
+              <Text className="text-gray-400 mb-2">Fecha del Evento</Text>
+              <TouchableOpacity 
+                className="bg-gray-700 rounded-lg px-4 py-3 mb-8"
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setShowDatePicker(true);
+                }}
+              >
+                <Text className="text-white">
+                  {eventDate.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </Text>
+              </TouchableOpacity>
+
+              {showDatePicker && (
+                <DateTimePicker
+                  value={eventDate}
+                  mode="date"
+                  display="default"
+                  minimumDate={new Date()} // No dejar poner eventos en el pasado
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(false);
+                    if (selectedDate) {
+                      setEventDate(selectedDate);
+                    }
+                  }}
+                />
+              )}
 
               <View className="flex-row justify-between">
                 <TouchableOpacity 
@@ -453,6 +468,6 @@ export default function DashboardScreen({ navigation }: Props) {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </View>
+    </ScrollView>
   );
 }

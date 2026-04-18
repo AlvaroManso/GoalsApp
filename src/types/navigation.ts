@@ -13,6 +13,7 @@ export type BottomTabParamList = {
   Dashboard: undefined;
   Calendar: undefined;
   Chat: undefined;
+  History: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> = 

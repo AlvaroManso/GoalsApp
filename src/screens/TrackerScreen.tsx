@@ -6,6 +6,7 @@ import { getDistance, formatTime, calculatePace } from '../utils/locationHelpers
 import { healthMock, BiometricData } from '../services/healthMock';
 import { calculateCalories } from '../utils/physiology';
 import { getDB } from '../db/database';
+import { saveActivity } from '../db/activities';
 
 type Props = RootStackScreenProps<'Tracker'>;
 
@@ -17,6 +18,7 @@ export default function TrackerScreen({ navigation }: Props) {
   const [distanceKm, setDistanceKm] = useState(0);
   const [timeSeconds, setTimeSeconds] = useState(0);
   const [lastLocation, setLastLocation] = useState<Location.LocationObjectCoords | null>(null);
+  const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[]>([]);
   
   // Paces
   const [avgPace, setAvgPace] = useState('0:00');
@@ -84,6 +86,7 @@ export default function TrackerScreen({ navigation }: Props) {
       setDistanceKm(0);
       setTimeSeconds(0);
       setLastLocation(null);
+      setRouteCoords([]);
       setAvgPace('0:00');
       setCurrentPace('0:00');
       setCalories(0);
@@ -108,6 +111,8 @@ export default function TrackerScreen({ navigation }: Props) {
         (location) => {
           const { coords } = location;
           
+          setRouteCoords(prev => [...prev, { latitude: coords.latitude, longitude: coords.longitude }]);
+
           setLastLocation(prevLocation => {
             if (prevLocation) {
               const increment = getDistance(
@@ -155,6 +160,26 @@ export default function TrackerScreen({ navigation }: Props) {
 
     // Detener Mock de Salud
     healthMock.stopTracking();
+
+    // Guardar actividad en BD
+    if (distanceKm > 0.01 || timeSeconds > 30) {
+      saveActivity({
+        date: new Date().toISOString(),
+        durationMinutes: Math.round(timeSeconds / 60),
+        distanceKm: parseFloat(distanceKm.toFixed(2)),
+        avgPace: avgPace,
+        calories: Math.floor(calories),
+        avgHR: biometrics.currentHR, // Mockeado por ahora
+        routeCoordinates: JSON.stringify(routeCoords)
+      });
+      Alert.alert('¡Buen Trabajo!', 'Tu entrenamiento ha sido guardado en el historial.', [
+        { text: 'Ok', onPress: () => navigation.goBack() }
+      ]);
+    } else {
+      Alert.alert('Actividad Corta', 'El entrenamiento fue muy corto y no se guardó.', [
+        { text: 'Ok', onPress: () => navigation.goBack() }
+      ]);
+    }
   };
 
   const handleToggleTracking = () => {

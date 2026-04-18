@@ -6,9 +6,9 @@ interface LoadingStateProps {
 }
 
 export const LoadingState: React.FC<LoadingStateProps> = ({ message = 'Cargando...' }) => (
-  <View className="flex-1 justify-center items-center bg-gray-900">
+  <View className="flex-1 justify-center items-center bg-gray-900 px-6">
     <ActivityIndicator size="large" color="#3b82f6" />
-    <Text className="text-gray-400 mt-4 text-lg">{message}</Text>
+    <Text className="text-gray-400 mt-4 text-lg text-center leading-6">{message}</Text>
   </View>
 );
 

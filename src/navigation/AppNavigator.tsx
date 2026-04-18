@@ -10,6 +10,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import TrackerScreen from '../screens/TrackerScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import ChatScreen from '../screens/ChatScreen';
+import HistoryScreen from '../screens/HistoryScreen';
 
 import { RootStackParamList, BottomTabParamList } from '../types/navigation';
 import { getDB } from '../db/database';
@@ -35,6 +36,8 @@ function TabNavigator() {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Calendar') {
             iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'History') {
+            iconName = focused ? 'map' : 'map-outline';
           } else if (route.name === 'Chat') {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           }
@@ -45,6 +48,7 @@ function TabNavigator() {
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Calendar" component={CalendarScreen} />
+      <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'Historial' }} />
       <Tab.Screen name="Chat" component={ChatScreen} />
     </Tab.Navigator>
   );

@@ -48,7 +48,8 @@
           "locationWhenInUsePermission": "Allow GoalsApp to use your location to track your runs.",
           "isAndroidBackgroundLocationEnabled": true
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ]
   }
 }
