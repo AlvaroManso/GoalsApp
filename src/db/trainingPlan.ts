@@ -1,15 +1,17 @@
 import { getDB } from './database';
-import { PlanSession } from '../services/geminiService';
+import { PlanSession as GeminiPlanSession } from '../services/geminiService';
+
+export type PlanSession = GeminiPlanSession;
 
 export const saveTrainingPlan = (plan: PlanSession[]) => {
   const db = getDB();
   
   try {
-    // Limpiamos el plan anterior si existía para reemplazarlo por el nuevo
+    // Limpiamos el plan anterior si existÃ­a para reemplazarlo por el nuevo
     db.runSync('DELETE FROM TrainingPlan');
 
-    // Insertar cada día del plan
-    // Para optimizar en SQLite, podríamos usar una transacción o batch, pero runSync es suficiente para ~364 filas en SQLite local
+    // Insertar cada dÃ­a del plan
+    // Para optimizar en SQLite, podrÃ­amos usar una transacciÃ³n o batch, pero runSync es suficiente para ~364 filas en SQLite local
     const stmt = db.prepareSync(
       'INSERT INTO TrainingPlan (weekNumber, dayOfWeek, date, activityType, durationMinutes, targetHRZone, coachNotes, requiresGPS) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
@@ -18,7 +20,7 @@ export const saveTrainingPlan = (plan: PlanSession[]) => {
 
     for (let i = 0; i < plan.length; i++) {
       const session = plan[i];
-      // Calcular la fecha exacta (Día 1 = Mañana)
+      // Calcular la fecha exacta (DÃ­a 1 = MaÃ±ana)
       const sessionDate = new Date(today);
       sessionDate.setDate(today.getDate() + 1 + i);
       const dateString = sessionDate.toISOString().split('T')[0];
@@ -69,7 +71,7 @@ export const getAllTrainingPlan = (): PlanSession[] => {
   }
 };
 
-export const updatePlanSessions = (updates: Partial<PlanSession> & { date: string }[]) => {
+export const updatePlanSessions = (updates: (Partial<PlanSession> & { date: string })[]) => {
   const db = getDB();
   try {
     db.withTransactionSync(() => {

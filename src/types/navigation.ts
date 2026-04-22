@@ -12,6 +12,7 @@ export type RootStackParamList = {
     durationMinutes?: number;
     targetHRZone?: string;
     coachNotes?: string;
+    planDate?: string;
   } | undefined;
   Profile: undefined;
 };

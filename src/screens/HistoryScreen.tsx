@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import MapView, { Polyline } from 'react-native-maps';
 import { TabScreenProps } from '../types/navigation';
-import { getActivities, ActivityRecord } from '../db/activities';
+import { getActivities, Activity } from '../db/activities';
 
 type Props = TabScreenProps<'History'>;
 
 export default function HistoryScreen({ navigation }: Props) {
-  const [activities, setActivities] = useState<ActivityRecord[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {

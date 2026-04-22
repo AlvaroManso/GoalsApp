@@ -53,6 +53,11 @@ export const initDB = () => {
         avgHR INTEGER,
         routeCoordinates TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS AppSettings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
     `);
 
     // Intentamos añadir la columna 'description' si la tabla ya existía de antes y no la tiene.
