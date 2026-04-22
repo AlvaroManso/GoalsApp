@@ -93,5 +93,17 @@
     "importSuccess": "योजना सफलतापूर्वक आयात और अपडेट की गई!",
     "importError": "कैलेंडर फ़ाइल नहीं पढ़ी जा सकी।",
     "importCancel": "आयात रद्द कर दिया गया।"
+  },
+  "gamification": {
+    "streak": "🔥 {{days}} दिन की स्ट्रीक",
+    "noStreak": "🔥 0 दिन",
+    "weeklySummaryTitle": "पिछले सप्ताह का सारांश",
+    "workoutsCompleted": "वर्कआउट",
+    "totalDistance": "दूरी",
+    "totalTime": "समय",
+    "caloriesBurned": "कैलोरी",
+    "kms": "किमी",
+    "mins": "मिनट",
+    "kcal": "कैल"
   }
 }

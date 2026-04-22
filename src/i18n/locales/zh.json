@@ -93,5 +93,17 @@
     "importSuccess": "计划导入并更新成功！",
     "importError": "无法读取日历文件。",
     "importCancel": "导入已取消。"
+  },
+  "gamification": {
+    "streak": "🔥 连续 {{days}} 天",
+    "noStreak": "🔥 0 天",
+    "weeklySummaryTitle": "上周总结",
+    "workoutsCompleted": "训练",
+    "totalDistance": "距离",
+    "totalTime": "时间",
+    "caloriesBurned": "卡路里",
+    "kms": "公里",
+    "mins": "分钟",
+    "kcal": "大卡"
   }
 }

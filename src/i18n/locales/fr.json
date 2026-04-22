@@ -93,5 +93,17 @@
     "importSuccess": "Plan importé et mis à jour avec succès !",
     "importError": "Impossible de lire le fichier calendrier.",
     "importCancel": "Importation annulée."
+  },
+  "gamification": {
+    "streak": "🔥 Série : {{days}} jours",
+    "noStreak": "🔥 0 jours",
+    "weeklySummaryTitle": "Résumé semaine dernière",
+    "workoutsCompleted": "Séances",
+    "totalDistance": "Distance",
+    "totalTime": "Temps",
+    "caloriesBurned": "Calories",
+    "kms": "km",
+    "mins": "min",
+    "kcal": "kcal"
   }
 }

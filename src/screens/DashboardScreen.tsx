@@ -9,8 +9,9 @@ import { generateWeeklyPlan, PlanSession } from '../services/geminiService';
 import { saveApiKey, getApiKey } from '../services/secureStorage';
 import { useTranslation } from 'react-i18next';
 import { saveTrainingPlan, getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
-import { saveActivity, deleteActivityByDateAndType, getActivities } from '../db/activities';
+import { saveActivity, deleteActivityByDateAndType, getActivities, Activity } from '../db/activities';
 import { getSetting, setSetting } from '../db/settings';
+import { calculateStreak, getLastWeekSummary } from '../utils/gamification';
 
 type Props = TabScreenProps<'Dashboard'>;
 
@@ -42,6 +43,8 @@ export default function DashboardScreen({ navigation }: Props) {
   const [runDays, setRunDays] = useState(4);
   const [strengthDays, setStrengthDays] = useState(2);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [weeklySummary, setWeeklySummary] = useState<any>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -98,6 +101,17 @@ export default function DashboardScreen({ navigation }: Props) {
         return act.date.split('T')[0];
       });
       setCompletedDates(completed);
+
+      // Calcular Gamificación (Streak y Resumen Semanal)
+      const streak = calculateStreak(history);
+      setCurrentStreak(streak);
+      
+      const summary = getLastWeekSummary(history);
+      if (summary.hasData) {
+        setWeeklySummary(summary);
+      } else {
+        setWeeklySummary(null);
+      }
 
     } catch (err) {
       setIsError(true);
@@ -415,9 +429,16 @@ export default function DashboardScreen({ navigation }: Props) {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4f46e5" />
       }
     >
-      <View className="flex-row justify-between items-center mb-8 pl-2">
+      <View className="flex-row justify-between items-center mb-6 pl-2 mt-2">
         <Text className="text-3xl text-gray-900 dark:text-white font-bold">{t('dashboard.myEvents')}</Text>
         <View className="flex-row items-center">
+          {/* Streak Badge */}
+          <View className="bg-orange-500/20 px-3 py-1.5 rounded-full mr-3 border border-orange-500/30 flex-row items-center">
+            <Text className="text-orange-500 font-bold text-sm">
+              {currentStreak > 0 ? t('gamification.streak', { days: currentStreak }) : t('gamification.noStreak')}
+            </Text>
+          </View>
+          
           <TouchableOpacity 
             className="bg-white dark:bg-gray-800 rounded-full w-10 h-10 items-center justify-center mr-3 border border-gray-200 dark:border-gray-700 shadow-sm"
             onPress={() => navigation.navigate('Profile')}
@@ -491,7 +512,7 @@ export default function DashboardScreen({ navigation }: Props) {
       )}
 
       {/* IA Plan Generator Section */}
-      <View className="flex-row justify-between items-center mt-2 mb-4 pl-2">
+      <View className="flex-row justify-between items-center mt-2 mb-6 pl-2">
         <TouchableOpacity 
           className="bg-indigo-600 rounded-xl py-4 items-center shadow-lg shadow-indigo-500/50 flex-1 mr-2"
           onPress={handleGeneratePlan}
@@ -506,6 +527,27 @@ export default function DashboardScreen({ navigation }: Props) {
           <Text className="text-gray-800 dark:text-white font-bold">{t('dashboard.preferences')}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Weekly Summary Card */}
+      {weeklySummary && (
+        <View className="bg-gray-800 p-5 rounded-2xl mb-6 mx-2 border border-gray-700 shadow-sm">
+          <Text className="text-indigo-400 font-bold mb-4">{t('gamification.weeklySummaryTitle')}</Text>
+          <View className="flex-row justify-between">
+            <View className="items-center flex-1">
+              <Text className="text-gray-400 text-xs mb-1 uppercase">{t('gamification.workoutsCompleted')}</Text>
+              <Text className="text-white font-bold text-xl">{weeklySummary.workouts}</Text>
+            </View>
+            <View className="items-center flex-1 border-l border-r border-gray-700 px-2">
+              <Text className="text-gray-400 text-xs mb-1 uppercase">{t('gamification.totalDistance')}</Text>
+              <Text className="text-white font-bold text-xl">{weeklySummary.distanceKm} <Text className="text-xs font-normal text-gray-500">{t('gamification.kms')}</Text></Text>
+            </View>
+            <View className="items-center flex-1">
+              <Text className="text-gray-400 text-xs mb-1 uppercase">{t('gamification.caloriesBurned')}</Text>
+              <Text className="text-white font-bold text-xl">{weeklySummary.calories} <Text className="text-xs font-normal text-gray-500">{t('gamification.kcal')}</Text></Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Render AI Plan Result (Preview only 7 days) */}
       {plan.length > 0 && (
