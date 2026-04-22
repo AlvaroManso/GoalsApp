@@ -14,9 +14,12 @@ export const saveApiKey = async (key: string): Promise<void> => {
 export const getApiKey = async (): Promise<string | null> => {
   try {
     const key = await SecureStore.getItemAsync(GEMINI_API_KEY_KEY);
+    // Si hay una key guardada en el dispositivo (BYOK), la usamos.
+    // Si no, comprobamos si el desarrollador ha puesto una en el archivo .env (EXPO_PUBLIC_GEMINI_API_KEY)
     return key || process.env.EXPO_PUBLIC_GEMINI_API_KEY || null;
   } catch (error) {
     console.error('Error retrieving API Key:', error);
+    // En caso de error leyendo SecureStore (raro), intentar usar el fallback del .env.
     return process.env.EXPO_PUBLIC_GEMINI_API_KEY || null;
   }
 };
