@@ -74,7 +74,14 @@ const generateWithFallback = async (requestFactory) => {
 const setCors = (res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+};
+
+const validatePayloadSize = (req) => {
+  const size = JSON.stringify(req.body || {}).length;
+  if (size > 100 * 1024) { // 100KB max payload
+    throw new Error('Payload too large. Max 100KB allowed.');
+  }
 };
 
 const getRequesterId = (req) => {
@@ -180,6 +187,7 @@ exports.generatePlan = onRequest({ cors: true, region: 'europe-west1', secrets: 
   }
 
   try {
+    validatePayloadSize(req);
     const {
       age,
       gender,
@@ -238,6 +246,7 @@ exports.coachChat = onRequest({ cors: true, region: 'europe-west1', secrets: ['G
   }
 
   try {
+    validatePayloadSize(req);
     const { message, planContext = [] } = req.body || {};
     const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta.
 Aquí tienes los próximos 60 días de su plan de entrenamiento actual:
@@ -279,6 +288,68 @@ Si no hay modificaciones, devuelve JSON así:
   } catch (error) {
     logger.error('coachChat failed', error);
     const publicError = toPublicError(error, 'No se pudo procesar tu mensaje ahora mismo.');
+    res.status(publicError.status).json(publicError.body);
+  }
+});
+
+exports.proactiveCoach = onRequest({ cors: true, region: 'europe-west1', secrets: ['GEMINI_API_KEY'] }, async (req, res) => {
+  setCors(res);
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Método no permitido.' });
+    return;
+  }
+  if (!applyRateLimit(req, res, 'proactiveCoach', 20, 5 * 60 * 1000)) {
+    return;
+  }
+
+  try {
+    validatePayloadSize(req);
+    const { today, fatigue, jointPain, planContext = [] } = req.body || {};
+
+    const systemPrompt = `Eres un entrenador de atletismo de élite. Tu atleta acaba de registrar su estado diario hoy (${today}):
+- Fatiga: ${fatigue}/10
+- Dolor Articular: ${jointPain}/10
+
+Su plan para los próximos 7 días es:
+${JSON.stringify(planContext)}
+
+Debes decidir si es necesario reajustar el plan debido a la alta fatiga o dolor.
+Si crees que NO es necesario, devuelve texto vacío o "NO_CHANGE".
+Si crees que SÍ es necesario, DEBES DEVOLVER ESTRICTAMENTE un JSON (sin markdown) con esta estructura:
+{
+  "type": "PLAN_UPDATE",
+  "message": "He analizado tus métricas y veo que tu cuerpo pide un respiro. Como tu coach, mi prioridad es evitar lesiones. ¿Te parece si cambiamos la sesión de hoy por recuperación activa para volver más fuertes mañana?",
+  "updates": [
+    { "date": "${today}", "activityType": "Recovery", "durationMinutes": 30, "targetHRZone": "Z1", "coachNotes": "Recuperación activa por fatiga alta", "requiresGPS": false }
+  ]
+}
+No devuelvas NADA MÁS que el JSON si decides actualizar.`;
+
+    const text = await generateWithFallback(() => ({
+      contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
+      generationConfig: { temperature: 0.2 }
+    }));
+
+    if (text === 'NO_CHANGE' || !text.includes('PLAN_UPDATE')) {
+      res.status(200).json({ status: 'NO_CHANGE' });
+      return;
+    }
+
+    try {
+      // Intenta limpiar de posibles bloques markdown ```json
+      const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleanText);
+      res.status(200).json(parsed);
+    } catch (e) {
+      res.status(200).json({ status: 'NO_CHANGE' });
+    }
+  } catch (error) {
+    logger.error('proactiveCoach failed', error);
+    const publicError = toPublicError(error, 'No se pudo procesar el coach proactivo.');
     res.status(publicError.status).json(publicError.body);
   }
 });

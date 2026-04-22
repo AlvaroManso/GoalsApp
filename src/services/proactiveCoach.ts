@@ -3,12 +3,10 @@ import { getAllTrainingPlan, updatePlanSessions, PlanSession } from '../db/train
 import { getDB } from '../db/database';
 import { Alert } from 'react-native';
 import { getActivities } from '../db/activities';
+import { hasAiBackend, proactiveCoachViaBackend } from './aiBackend';
 
 export const analyzeCheckinProactively = async (): Promise<boolean> => {
   try {
-    const apiKey = await getApiKey();
-    if (!apiKey) return false;
-
     const db = getDB();
     const today = new Date().toISOString().split('T')[0];
     
@@ -27,14 +25,48 @@ export const analyzeCheckinProactively = async (): Promise<boolean> => {
     
     if (futurePlan.length === 0) return false;
 
-    const planContext = JSON.stringify(futurePlan.map(p => ({
+    const planContextItems = futurePlan.map(p => ({
       date: p.date,
       activityType: p.activityType,
       durationMinutes: p.durationMinutes,
       targetHRZone: p.targetHRZone,
       coachNotes: p.coachNotes,
       requiresGPS: p.requiresGPS
-    })));
+    }));
+
+    if (hasAiBackend()) {
+      const response = await proactiveCoachViaBackend({
+        today,
+        fatigue: checkin.fatigue,
+        jointPain: checkin.jointPain,
+        planContext: planContextItems
+      });
+
+      if (response.type === 'PLAN_UPDATE' && response.updates && response.updates.length > 0) {
+        Alert.alert(
+          '🤖 Coach Proactivo',
+          response.message || 'He analizado tus métricas y creo que deberíamos reajustar el plan de hoy.',
+          [
+            { text: 'No, gracias', style: 'cancel' },
+            { 
+              text: 'Sí, reajustar plan', 
+              onPress: () => {
+                updatePlanSessions(response.updates!);
+                Alert.alert('Estrategia Actualizada', 'Tu plan ha sido reajustado. ¡A descansar y volver con más fuerza!');
+              }
+            }
+          ]
+        );
+        return true;
+      }
+      return false;
+    }
+
+    // Fallback BYOK
+    const apiKey = await getApiKey();
+    if (!apiKey) return false;
+
+    const planContext = JSON.stringify(planContextItems);
 
     const systemPrompt = `Eres un entrenador de atletismo de élite. Tu atleta acaba de registrar su estado diario hoy (${today}):
 - Fatiga: ${checkin.fatigue}/10
@@ -77,7 +109,6 @@ No devuelvas NADA MÁS que el JSON si decides actualizar.`;
     try {
       const parsed = JSON.parse(text);
       if (parsed.type === 'PLAN_UPDATE' && parsed.updates && parsed.updates.length > 0) {
-        // Pop an alert asking the user if they want to apply it
         Alert.alert(
           '🤖 Coach Proactivo',
           parsed.message,

@@ -7,6 +7,9 @@ const GENERATE_PLAN_URL =
 const COACH_CHAT_URL =
   process.env.EXPO_PUBLIC_AI_COACH_CHAT_URL?.trim() ||
   (BACKEND_BASE_URL ? `${BACKEND_BASE_URL}/coachChat` : '');
+const PROACTIVE_COACH_URL =
+  process.env.EXPO_PUBLIC_AI_PROACTIVE_COACH_URL?.trim() ||
+  (BACKEND_BASE_URL ? `${BACKEND_BASE_URL}/proactiveCoach` : '');
 
 type CacheEntry<T> = {
   expiresAt: number;
@@ -128,4 +131,20 @@ export const coachChatViaBackend = async (payload: {
 }): Promise<CoachBackendResponse> => {
   const key = getCacheKey('coachChat', payload);
   return withMemoryCache(key, 20 * 1000, () => postJson<CoachBackendResponse>(COACH_CHAT_URL, payload));
+};
+
+export const proactiveCoachViaBackend = async (payload: {
+  today: string;
+  fatigue: number;
+  jointPain: number;
+  planContext: Array<{
+    date?: string;
+    activityType: string;
+    durationMinutes: number;
+    targetHRZone: string;
+    coachNotes: string;
+    requiresGPS?: boolean;
+  }>;
+}): Promise<{ type?: string; message?: string; updates?: CoachUpdate[]; status?: string }> => {
+  return postJson(PROACTIVE_COACH_URL, payload);
 };
