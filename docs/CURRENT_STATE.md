@@ -34,3 +34,19 @@ Para no perder el control de los cambios como nos pasó en la sesión anterior (
 - Según tus **Reglas de Usuario** (User Rules), hace falta crear la documentación arquitectónica base en `docs/architecture/keizai_architecture.md`. No existe actualmente.
 - Sincronización real con Apple HealthKit / Google Fit aún está pendiente (actualmente se está usando un Mock).
 - Exportación del plan de entrenamiento a formato `.ics` para el calendario del móvil.
+## 5. Ideas y Siguientes Pasos (Product Backlog)
+
+Basado en el objetivo principal de GoalsApp, aquí tienes el backlog de funcionalidades clave que marcarán la diferencia en los próximos sprints:
+
+### Alta Prioridad (Retención y Fricción Cero)
+- **Sincronización Bidireccional (Apple Health / Google Fit)**: Leer automáticamente entrenamientos, pasos y frecuencia cardíaca para marcar las sesiones de GoalsApp como completadas sin intervención manual. (Actualmente pendiente de implementar el enlace real, usamos mock).
+- **Notificaciones Locales (Push)**: Programar recordatorios nativos en el dispositivo (sin servidor) para asegurar la constancia: *"⏰ No olvides tu Check-In diario"* o *"🏃‍♂️ Hoy toca: Fuerza (45 min)"*.
+
+### Media Prioridad (Diferenciación y Gamificación)
+- **El Coach Proactivo (IA Automática)**: Hacer que Gemini analice silenciosamente los Check-ins diarios. Si detecta alta fatiga o días saltados, la app debe lanzar un popup sugiriendo proactivamente un reajuste del plan (ej: *"He visto que estás muy cansado. ¿Cambio las series de hoy por recuperación activa?"*).
+- **Micro-Objetivos y Gamificación (Rachas/Streaks)**: Implementar un sistema visual de "Rachas" (ej. "🔥 5 días seguidos cumpliendo tu plan") para fomentar la retención psicológica del usuario.
+
+### Baja Prioridad (Experiencia Visual)
+- **Widgets Nativos (iOS/Android)**: Desarrollar widgets para la pantalla de inicio del móvil que muestren el progreso semanal o el próximo entrenamiento programado, manteniendo GoalsApp siempre visible para el usuario.
+
+*Nota: La gestión de Múltiples "Goals" ya está cubierta por la arquitectura actual de generación de planes.*
