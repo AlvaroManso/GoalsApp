@@ -5,6 +5,8 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 admin.initializeApp();
 
+const rateLimitStore = new Map();
+
 const SYSTEM_PROMPT = `Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un macrociclo de entrenamiento para las próximas 52 semanas (1 año completo) estructurado en formato JSON puro.
 REGLAS FISIOLÓGICAS INQUEBRANTABLES:
 1. Método 80/20: El 80% del volumen de carrera debe ser en Z1/Z2 (Conversacional). Solo el 20% en Z4/Z5 (Series).
@@ -15,14 +17,58 @@ REGLAS FISIOLÓGICAS INQUEBRANTABLES:
 FORMATO JSON REQUERIDO: Devuelve estrictamente un array de objetos. Estructura para cada día del año: 'weekNumber' (number 1-52), 'dayOfWeek' (number 1-7), 'activityType' (string: Run, Treadmill, Cycling, Strength, Rest, Crosstraining, Swimming), 'durationMinutes' (number), 'targetHRZone' (string), 'coachNotes' (string) y 'requiresGPS' (boolean). El campo 'requiresGPS' debe ser true SÓLO si la actividad requiere medir distancia al aire libre (ej: Run, Cycling). Para entrenamientos indoor (Treadmill, Rodillo, Piscina, Fuerza, Descanso), 'requiresGPS' DEBE SER false para no gastar batería.
 Deben ser exactamente 364 objetos (52 semanas * 7 días).`;
 
-const getModel = () => {
+const getGenAI = () => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('Falta GEMINI_API_KEY en Firebase Functions.');
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  return genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  return new GoogleGenerativeAI(apiKey);
+};
+
+const getCandidateModels = async () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json?.error?.message || 'No se pudieron listar modelos de Gemini.');
+  }
+
+  const models = Array.isArray(json?.models) ? json.models : [];
+  const supported = models
+    .filter((m) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+    .map((m) => (typeof m.name === 'string' ? m.name.replace(/^models\//, '') : ''))
+    .filter(Boolean);
+
+  const preferred = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash', 'gemini-2.5-flash'];
+  const candidates = preferred.filter((name) => supported.includes(name));
+  const finalCandidates = candidates.length > 0 ? candidates : supported.slice(0, 5);
+
+  if (finalCandidates.length === 0) {
+    throw new Error('No hay modelos Gemini compatibles con generateContent.');
+  }
+
+  return finalCandidates;
+};
+
+const generateWithFallback = async (requestFactory) => {
+  const candidates = await getCandidateModels();
+  const genAI = getGenAI();
+  let lastError = null;
+
+  for (const modelName of candidates) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(requestFactory());
+      const response = await result.response;
+      return response.text();
+    } catch (error) {
+      lastError = error;
+      logger.warn(`Modelo Gemini falló en backend: ${modelName}`);
+    }
+  }
+
+  throw lastError || new Error('No se pudo obtener respuesta de ningún modelo Gemini.');
 };
 
 const setCors = (res) => {
@@ -31,7 +77,95 @@ const setCors = (res) => {
   res.set('Access-Control-Allow-Headers', 'Content-Type');
 };
 
-exports.generatePlan = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
+const getRequesterId = (req) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.ip || 'unknown';
+};
+
+const cleanupRateLimit = (now) => {
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (!entry || entry.resetAt <= now || entry.timestamps.length === 0) {
+      rateLimitStore.delete(key);
+    }
+  }
+};
+
+const applyRateLimit = (req, res, bucketName, limit, windowMs) => {
+  const now = Date.now();
+  cleanupRateLimit(now);
+
+  const requesterId = getRequesterId(req);
+  const bucketKey = `${bucketName}:${requesterId}`;
+  const existing = rateLimitStore.get(bucketKey) || {
+    timestamps: [],
+    resetAt: now + windowMs,
+  };
+
+  existing.timestamps = existing.timestamps.filter((ts) => now - ts < windowMs);
+
+  if (existing.timestamps.length >= limit) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((existing.timestamps[0] + windowMs - now) / 1000));
+    res.status(429).json({
+      error: 'Has llegado al límite temporal de peticiones. Espera un momento y vuelve a intentarlo.',
+      code: 'RATE_LIMITED',
+      retryAfterSeconds,
+    });
+    return false;
+  }
+
+  existing.timestamps.push(now);
+  existing.resetAt = now + windowMs;
+  rateLimitStore.set(bucketKey, existing);
+  return true;
+};
+
+const toPublicError = (error, fallbackMessage) => {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const message = rawMessage.toLowerCase();
+
+  if (message.includes('quota') || message.includes('429') || message.includes('too many requests')) {
+    return {
+      status: 429,
+      body: {
+        error: 'La IA está saturada o has agotado temporalmente la cuota. Prueba de nuevo en unos segundos.',
+        code: 'AI_QUOTA_EXCEEDED',
+      },
+    };
+  }
+
+  if (message.includes('gemini_api_key')) {
+    return {
+      status: 500,
+      body: {
+        error: 'La configuración interna de la IA no está lista todavía.',
+        code: 'AI_BACKEND_MISCONFIGURED',
+      },
+    };
+  }
+
+  if (error instanceof SyntaxError || message.includes('json')) {
+    return {
+      status: 502,
+      body: {
+        error: 'La IA devolvió una respuesta inesperada. Inténtalo de nuevo.',
+        code: 'AI_INVALID_RESPONSE',
+      },
+    };
+  }
+
+  return {
+    status: 500,
+    body: {
+      error: fallbackMessage,
+      code: 'AI_BACKEND_ERROR',
+    },
+  };
+};
+
+exports.generatePlan = onRequest({ cors: true, region: 'europe-west1', secrets: ['GEMINI_API_KEY'] }, async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
@@ -39,6 +173,9 @@ exports.generatePlan = onRequest({ cors: true, region: 'europe-west1' }, async (
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Método no permitido.' });
+    return;
+  }
+  if (!applyRateLimit(req, res, 'generatePlan', 4, 10 * 60 * 1000)) {
     return;
   }
 
@@ -63,8 +200,7 @@ Equipamiento disponible en el sitio: [${equipment.length > 0 ? equipment.join(',
 ${userPreferences ? `Preferencias y condiciones del usuario: "${userPreferences}"` : ''}
 Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
 
-    const model = getModel();
-    const result = await model.generateContent({
+    const text = await generateWithFallback(() => ({
       systemInstruction: {
         parts: [{ text: SYSTEM_PROMPT }],
       },
@@ -77,19 +213,17 @@ Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
       generationConfig: {
         responseMimeType: 'application/json',
       },
-    });
-
-    const response = await result.response;
-    const text = response.text();
+    }));
     const plan = JSON.parse(text);
     res.status(200).json({ plan });
   } catch (error) {
     logger.error('generatePlan failed', error);
-    res.status(500).json({ error: error.message || 'No se pudo generar el plan.' });
+    const publicError = toPublicError(error, 'No se pudo generar el plan ahora mismo.');
+    res.status(publicError.status).json(publicError.body);
   }
 });
 
-exports.coachChat = onRequest({ cors: true, region: 'europe-west1' }, async (req, res) => {
+exports.coachChat = onRequest({ cors: true, region: 'europe-west1', secrets: ['GEMINI_API_KEY'] }, async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
     res.status(204).send('');
@@ -99,11 +233,12 @@ exports.coachChat = onRequest({ cors: true, region: 'europe-west1' }, async (req
     res.status(405).json({ error: 'Método no permitido.' });
     return;
   }
+  if (!applyRateLimit(req, res, 'coachChat', 20, 5 * 60 * 1000)) {
+    return;
+  }
 
   try {
     const { message, planContext = [] } = req.body || {};
-    const model = getModel();
-
     const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta.
 Aquí tienes los próximos 60 días de su plan de entrenamiento actual:
 ---
@@ -125,7 +260,7 @@ Si no hay modificaciones, devuelve JSON así:
   "message": "respuesta normal"
 }`;
 
-    const result = await model.generateContent({
+    const text = await generateWithFallback(() => ({
       systemInstruction: {
         parts: [{ text: systemInstructionText }],
       },
@@ -138,14 +273,12 @@ Si no hay modificaciones, devuelve JSON así:
       generationConfig: {
         responseMimeType: 'application/json',
       },
-    });
-
-    const response = await result.response;
-    const text = response.text();
+    }));
     const parsed = JSON.parse(text);
     res.status(200).json(parsed);
   } catch (error) {
     logger.error('coachChat failed', error);
-    res.status(500).json({ error: error.message || 'No se pudo procesar el chat.' });
+    const publicError = toPublicError(error, 'No se pudo procesar tu mensaje ahora mismo.');
+    res.status(publicError.status).json(publicError.body);
   }
 });

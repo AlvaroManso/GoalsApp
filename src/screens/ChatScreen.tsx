@@ -186,7 +186,11 @@ Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que c
 
     } catch (error) {
       console.error('Chat error:', error);
-      const errorMsg: Message = { id: Date.now().toString() + 'E', text: 'Ups, no pude procesar eso. Revisa tu conexión o tu API Key.', isUser: false };
+      const friendlyError =
+        error instanceof Error
+          ? error.message
+          : 'Ups, no pude procesar eso ahora mismo. Inténtalo de nuevo en unos segundos.';
+      const errorMsg: Message = { id: Date.now().toString() + 'E', text: friendlyError, isUser: false };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsTyping(false);

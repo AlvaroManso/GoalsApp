@@ -171,6 +171,9 @@ Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
     return plan;
   } catch (error) {
     console.error('Error generando plan con Gemini:', error);
-    throw error;
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('No se pudo generar el plan ahora mismo. Inténtalo de nuevo en unos segundos.');
   }
 };
