@@ -1,4 +1,3 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getApiKey } from './secureStorage';
 import { parseAIResponse } from '../utils/sanitizer';
 
@@ -44,8 +43,6 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
       throw new Error('No se ha configurado una API Key de Gemini.');
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-
     const eventsList = params.events.map(e => `${e.type} (Prioridad ${e.priority}) el ${e.date}`).join(', ');
 
     const dynamicPrompt = `Atleta de ${params.age} años. Género: ${params.gender}. FC Reposo: ${params.restingHR}. Fatiga: ${params.fatigue}/10. Dolor articular: ${params.jointPain}/10.
@@ -56,53 +53,83 @@ Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
 
     console.log('Enviando prompt a Gemini:', dynamicPrompt);
 
-    // Cascada de mejor a peor calidad (siempre con fallback para evitar bloqueos por 404).
-    const modelCandidates = [
-      'gemini-2.5-pro',
-      'gemini-1.5-pro',
-      'gemini-2.5-flash',
-      'gemini-2.0-flash',
+    const listModels = async (): Promise<string[]> => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url);
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = json?.error?.message ?? `HTTP ${res.status}`;
+        throw new Error(`No se pudo listar modelos de Gemini (${message}). Revisa tu API Key y que la Gemini API esté habilitada.`);
+      }
+      const models: any[] = Array.isArray(json?.models) ? json.models : [];
+      const supported = models
+        .filter((m) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+        .map((m) => (typeof m.name === 'string' ? m.name : ''))
+        .filter(Boolean)
+        .map((name) => name.replace(/^models\//, ''));
+      return supported;
+    };
+
+    const generateWithModel = async (modelId: string): Promise<string> => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const body = {
+        systemInstruction: {
+          parts: [{ text: SYSTEM_PROMPT }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: dynamicPrompt }],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+        },
+      };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const message = json?.error?.message ?? `HTTP ${res.status}`;
+        throw new Error(message);
+      }
+
+      const parts = json?.candidates?.[0]?.content?.parts;
+      if (!Array.isArray(parts)) return '';
+      return parts.map((p: any) => (typeof p.text === 'string' ? p.text : '')).join('');
+    };
+
+    if (params.onProgress) params.onProgress(5);
+
+    const available = await listModels();
+    console.log('Modelos Gemini disponibles (generateContent):', available.slice(0, 20));
+    const preferredOrder = [
       'gemini-1.5-flash',
+      'gemini-1.5-pro',
+
     ];
+    const candidates = preferredOrder.filter((m) => available.includes(m));
+    const modelCandidates = candidates.length > 0 ? candidates : available.slice(0, 5);
 
     let responseText = '';
     let lastError: unknown = null;
 
-    // Iniciar progreso
-    if (params.onProgress) params.onProgress(5); // Simulamos un 5% al enviar la petición
-
     for (const modelName of modelCandidates) {
       try {
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          systemInstruction: SYSTEM_PROMPT,
-          generationConfig: {
-            responseMimeType: 'application/json',
-          },
-        });
-
-        // Usamos streaming para poder capturar progreso
-        const resultStream = await model.generateContentStream(dynamicPrompt);
-        
-        let chunkCount = 0;
-        const totalEstimatedChunks = 40; // Aproximadamente 40 chunks para 364 objetos JSON, varía según el modelo
-
-        for await (const chunk of resultStream) {
-          responseText += chunk.text();
-          chunkCount++;
-          
-          if (params.onProgress) {
-            // Simulamos el progreso hasta un 95% basado en chunks. 
-            // 5% inicial + (hasta 90% del streaming) = 95% máximo antes del parseo final.
-            const progress = Math.min(95, 5 + Math.floor((chunkCount / totalEstimatedChunks) * 90));
-            params.onProgress(progress);
-          }
-        }
-        
+        responseText = await generateWithModel(modelName);
+        if (params.onProgress) params.onProgress(95);
         console.log(`Gemini model used: ${modelName}`);
         break;
       } catch (err) {
         lastError = err;
+        responseText = '';
         console.warn(`Gemini model failed: ${modelName}`);
       }
     }

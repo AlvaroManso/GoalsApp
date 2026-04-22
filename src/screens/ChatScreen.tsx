@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { TabScreenProps } from '../types/navigation';
 import { getApiKey } from '../services/secureStorage';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
 import { parseAIResponse } from '../utils/sanitizer';
 
@@ -22,6 +21,7 @@ export default function ChatScreen({ navigation }: Props) {
   const [isTyping, setIsTyping] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
@@ -31,6 +31,9 @@ export default function ChatScreen({ navigation }: Props) {
     
     setMessages(prev => [...prev, newUserMsg]);
     setInputText('');
+    setTimeout(() => {
+      inputRef.current?.clear(); // Force clear on the native component safely
+    }, 10);
     setIsTyping(true);
 
     try {
@@ -51,10 +54,32 @@ export default function ChatScreen({ navigation }: Props) {
         requiresGPS: p.requiresGPS
       })));
 
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash',
-        systemInstruction: `Eres un entrenador de atletismo de élite respondiendo a tu atleta.
+      const listModels = async (): Promise<string[]> => {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
+        const res = await fetch(url);
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error('No se pudo listar modelos de Gemini.');
+        }
+        const models: any[] = Array.isArray(json?.models) ? json.models : [];
+        return models
+          .filter((m) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .map((m) => (typeof m.name === 'string' ? m.name : ''))
+          .filter(Boolean)
+          .map((name) => name.replace(/^models\//, ''));
+      };
+
+      const available = await listModels();
+      const preferredOrder = [
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+      ];
+      const candidates = preferredOrder.filter((m) => available.includes(m));
+      const modelToUse = candidates.length > 0 ? candidates[0] : (available[0] || 'gemini-1.5-flash');
+
+      const generateWithModel = async (modelId: string, promptText: string): Promise<string> => {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta.
 Aquí tienes los próximos 60 días de su plan de entrenamiento actual:
 ---
 ${planContext}
@@ -70,11 +95,40 @@ PERO si el usuario PIDE MODIFICAR el plan (ej: "haz que los entrenos de fuerza s
   ]
 }
 Recuerda añadir siempre "requiresGPS": false para entrenamientos que no requieran medir distancia con GPS al aire libre (ej. Fuerza, Descanso, Piscina, Rodillo).
-Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que coincidan con las fechas del contexto. Si no hay modificaciones, devuelve texto plano normal.`
-      });
+Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que coincidan con las fechas del contexto. Si no hay modificaciones, devuelve texto plano normal.`;
 
-      const result = await model.generateContent(userText);
-      const responseText = result.response.text();
+        const body = {
+          systemInstruction: {
+            parts: [{ text: systemInstructionText }],
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: promptText }],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: 'application/json',
+          },
+        };
+
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+        }
+
+        const parts = json?.candidates?.[0]?.content?.parts;
+        if (!Array.isArray(parts)) return '';
+        return parts.map((p: any) => (typeof p.text === 'string' ? p.text : '')).join('');
+      };
+
+      const responseText = await generateWithModel(modelToUse, userText);
 
       try {
         // Intentar parsear como JSON si el modelo decidió actualizar el plan
@@ -125,12 +179,12 @@ Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que c
         contentContainerStyle={{ paddingBottom: 20 }}
       >
         {messages.map(msg => (
-          <View 
-            key={msg.id} 
-            className={`mb-4 max-w-[85%] rounded-2xl p-4 ${
-              msg.isUser 
-                ? 'bg-indigo-600 self-end rounded-tr-sm shadow-sm' 
-                : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 self-start rounded-tl-sm shadow-sm'
+          <View
+            key={msg.id}
+            className={`mb-4 max-w-[85%] rounded-2xl p-4 flex-shrink ${
+              msg.isUser
+                ? 'bg-indigo-600 self-end shadow-sm'
+                : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 self-start shadow-sm'
             }`}
           >
             <Text className={`${msg.isUser ? 'text-white' : 'text-gray-900 dark:text-white'} text-base leading-6`}>{msg.text}</Text>
@@ -143,9 +197,10 @@ Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que c
         )}
       </ScrollView>
 
-      <View className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-row items-center">
+      <View className="p-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex-row items-end">
         <TextInput
-          className="flex-1 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white rounded-full px-4 py-3 mr-3 border border-gray-200 dark:border-gray-700"
+          ref={inputRef}
+          className="flex-1 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white rounded-3xl px-4 py-3 mr-3 border border-gray-200 dark:border-gray-700 min-h-[48px] max-h-32"
           placeholder="Pregúntame sobre tus entrenamientos..."
           placeholderTextColor="#9ca3af"
           value={inputText}
@@ -153,7 +208,7 @@ Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que c
           multiline
         />
         <TouchableOpacity 
-          className="bg-indigo-600 w-12 h-12 rounded-full items-center justify-center shadow-sm"
+          className="bg-indigo-600 w-12 h-12 rounded-full items-center justify-center shadow-sm mb-0.5"
           onPress={handleSend}
           disabled={isTyping}
         >
