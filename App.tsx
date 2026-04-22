@@ -10,6 +10,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDB } from './src/db/database';
 import { hydrateLanguageFromDB } from './src/i18n';
 import { scheduleDailyReminders } from './src/services/notificationService';
+import * as Notifications from 'expo-notifications';
+import { injectMockActivities } from './src/utils/mockData';
 
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -25,6 +27,21 @@ export default function App() {
         setColorScheme('dark');
         initDB();
         await hydrateLanguageFromDB();
+        
+        // DEV ONLY: Inject mock data and show immediate notification
+        if (__DEV__) {
+          injectMockActivities();
+          
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "🚀 Modo Desarrollo",
+              body: "He inyectado semanas de entrenamiento y rachas para que puedas probar la gamificación.",
+              data: { route: 'Dashboard' },
+            },
+            trigger: null, // trigger immediately
+          });
+        }
+
         scheduleDailyReminders().catch(err => console.log('Error scheduling notifications:', err));
         setDbReady(true);
       } catch (error) {
