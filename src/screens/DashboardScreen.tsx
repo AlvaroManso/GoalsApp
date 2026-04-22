@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { TabScreenProps } from '../types/navigation';
 import { getEvents, addEvent, updateEvent, deleteEvent, AppEvent } from '../db/events';
@@ -21,6 +21,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0); // Progress for the bar
+  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [isError, setIsError] = useState(false);
   
   // Modals
@@ -42,6 +43,18 @@ export default function DashboardScreen({ navigation }: Props) {
   const [strengthDays, setStrengthDays] = useState(2);
   const [refreshing, setRefreshing] = useState(false);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isGeneratingPlan) {
+      interval = setInterval(() => {
+        setLoadingPhaseIndex(prev => (prev + 1) % 6);
+      }, 3000);
+    } else {
+      setLoadingPhaseIndex(0);
+    }
+    return () => clearInterval(interval);
+  }, [isGeneratingPlan]);
 
   const EVENT_OPTIONS = ['10k', 'Media Maratón', 'Maratón', 'Triatlón', 'Ciclismo', 'Trail/Montaña', 'Fuerza', 'Hyrox', 'Otro'];
   const EQUIPMENT_OPTIONS = ['Cinta de Correr', 'Rodillo / Bici Estática', 'Piscina Infinita / Estática', 'Pesas / Gimnasio', 'Pista de Atletismo'];
@@ -365,24 +378,31 @@ export default function DashboardScreen({ navigation }: Props) {
   if (isLoading) return <LoadingState message="Cargando eventos..." />;
   if (isError) return <ErrorState message="No se pudieron cargar tus eventos. Intenta de nuevo." />;
   if (isGeneratingPlan) {
-    const weeksGenerated = Math.floor((generationProgress / 100) * 52);
+    const AI_PHASES = [
+      "Analizando tu perfil biométrico...",
+      "Aplicando ciencia deportiva (80/20)...",
+      "Ajustando volumen e intensidad...",
+      "Calculando periodización de 52 semanas...",
+      "Alineando con tus eventos principales...",
+      "¡Casi listo! Afinando detalles..."
+    ];
+
     return (
       <View className="flex-1 justify-center items-center bg-gray-50 dark:bg-gray-900 px-6">
-        <Text className="text-xl text-gray-900 dark:text-white font-bold text-center mb-4">
+        <View className="w-24 h-24 bg-indigo-900/30 rounded-full items-center justify-center mb-8 border-4 border-indigo-500/50 shadow-lg shadow-indigo-500/30">
+          <ActivityIndicator size="large" color="#6366f1" />
+        </View>
+
+        <Text className="text-2xl text-gray-900 dark:text-white font-bold text-center mb-2">
           {t('dashboard.generating')}
         </Text>
-        <Text className="text-gray-500 dark:text-gray-400 text-center mb-8">
-          {t('dashboard.generatingWait')}
+        
+        <Text className="text-indigo-400 font-medium text-center mb-4 h-6">
+          {AI_PHASES[loadingPhaseIndex]}
         </Text>
 
-        <View className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-6 overflow-hidden mb-2">
-          <View 
-            className="bg-indigo-600 h-full rounded-full"
-            style={{ width: `${generationProgress}%` }}
-          />
-        </View>
-        <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">
-          {t('dashboard.weeksGenerated', { current: weeksGenerated })}
+        <Text className="text-gray-500 dark:text-gray-500 text-center text-sm italic">
+          {t('dashboard.generatingWait')}
         </Text>
       </View>
     );

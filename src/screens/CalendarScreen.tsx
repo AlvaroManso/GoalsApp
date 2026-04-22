@@ -178,8 +178,7 @@ export default function CalendarScreen({ navigation }: Props) {
                   }
                 }}
               >
-                <Text className="text-white font-bold mr-2">{t('calendarScreen.goToTracker')}</Text>
-                <Text className="text-white">▶</Text>
+                <Text className="text-white font-bold text-center text-base">{t('calendarScreen.goToTracker')}</Text>
               </TouchableOpacity>
             )}
           </View>
