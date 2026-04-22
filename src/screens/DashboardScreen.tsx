@@ -45,6 +45,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
+  const [raceWeekEvent, setRaceWeekEvent] = useState<{ event: AppEvent, daysLeft: number } | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -73,6 +74,26 @@ export default function DashboardScreen({ navigation }: Props) {
 
       // Cargar plan guardado si existe
       const savedPlan = getAllTrainingPlan();
+
+      // Check for Race Week (Event within 0-7 days)
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      
+      const upcomingEvent = sortedData.find(e => {
+        const eDate = new Date(e.date + 'T12:00:00Z');
+        const diffTime = eDate.getTime() - todayDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
+      });
+
+      if (upcomingEvent) {
+        const eDate = new Date(upcomingEvent.date + 'T12:00:00Z');
+        const diffTime = eDate.getTime() - todayDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setRaceWeekEvent({ event: upcomingEvent, daysLeft: diffDays });
+      } else {
+        setRaceWeekEvent(null);
+      }
       if (savedPlan && savedPlan.length > 0) {
         // Encontrar el lunes de la semana actual
         const today = new Date();
@@ -429,6 +450,30 @@ export default function DashboardScreen({ navigation }: Props) {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#4f46e5" />
       }
     >
+      {/* Race Week Banner */}
+      {raceWeekEvent && (
+        <View className="bg-indigo-600 rounded-2xl p-5 mb-6 mx-2 shadow-lg shadow-indigo-500/40 border border-indigo-500">
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-indigo-100 font-bold text-xs tracking-widest">{t('raceWeek.raceWeekTitle')}</Text>
+            <View className="bg-white/20 px-2 py-1 rounded-md">
+              <Text className="text-white text-xs font-bold">{t('raceWeek.taperingMode')}</Text>
+            </View>
+          </View>
+          
+          <Text className="text-white font-extrabold text-2xl mb-1">
+            {raceWeekEvent.daysLeft === 0 
+              ? t('raceWeek.todayIsRace', { event: raceWeekEvent.event.type })
+              : t('raceWeek.daysToGoal', { days: raceWeekEvent.daysLeft, event: raceWeekEvent.event.type })}
+          </Text>
+          
+          <Text className="text-indigo-100 text-sm mt-2 italic leading-5">
+            {raceWeekEvent.daysLeft === 0 
+              ? t('raceWeek.raceTipsToday')
+              : t('raceWeek.raceTips')}
+          </Text>
+        </View>
+      )}
+
       <View className="flex-row justify-between items-center mb-6 pl-2 mt-2">
         <Text className="text-3xl text-gray-900 dark:text-white font-bold">{t('dashboard.myEvents')}</Text>
         <View className="flex-row items-center">

@@ -105,5 +105,13 @@
     "kms": "公里",
     "mins": "分钟",
     "kcal": "大卡"
+  },
+  "raceWeek": {
+    "raceWeekTitle": "🏁 比赛周",
+    "taperingMode": "减量期模式已激活",
+    "daysToGoal": "距离您的目标还有 {{days}} 天：{{event}}",
+    "todayIsRace": "就是今天！去打破记录吧：{{event}}",
+    "raceTips": "相信您的训练。保持水分，补充碳水，并在脑海中想象终点线。",
+    "raceTipsToday": "记住您的配速策略。您可以做到的！"
   }
 }

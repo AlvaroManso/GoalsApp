@@ -105,5 +105,13 @@
     "kms": "km",
     "mins": "min",
     "kcal": "kcal"
+  },
+  "raceWeek": {
+    "raceWeekTitle": "🏁 RACE WEEK",
+    "taperingMode": "Tapering Mode Active",
+    "daysToGoal": "Only {{days}} days until your goal: {{event}}",
+    "todayIsRace": "TODAY IS THE DAY! GO SMASH IT: {{event}}",
+    "raceTips": "Trust your training. Stay hydrated, eat your carbs, and visualize the finish line.",
+    "raceTipsToday": "Remember your pacing strategy. You've got this!"
   }
 }

@@ -105,5 +105,13 @@
     "kms": "km",
     "mins": "min",
     "kcal": "kcal"
+  },
+  "raceWeek": {
+    "raceWeekTitle": "🏁 SEMAINE DE COURSE",
+    "taperingMode": "Mode Affûtage Activé",
+    "daysToGoal": "Plus que {{days}} jours avant votre objectif : {{event}}",
+    "todayIsRace": "C'EST LE GRAND JOUR ! DÉCHIREZ TOUT : {{event}}",
+    "raceTips": "Faites confiance à votre entraînement. Hydratez-vous, mangez des glucides et visualisez l'arrivée.",
+    "raceTipsToday": "Rappelez-vous de votre stratégie d'allure. Vous allez y arriver !"
   }
 }
