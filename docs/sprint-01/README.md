@@ -49,4 +49,24 @@
 ## 📋 Pendiente / Próximos Pasos
 - Sincronización real con Apple HealthKit/Google Fit para FC en vivo (actualmente se usa un Mock).
 - Exportación del plan de entrenamiento a .ics (Calendario del móvil).
-- Documentar formalmente la arquitectura en `docs/architecture/keizai_architecture.md` para alinear el desarrollo con las reglas del proyecto.
+
+## 🗺️ Roadmap de Producto
+
+### Now
+- Coach Proactivo.
+- Adherencia / progreso visible.
+- Notificaciones locales inteligentes.
+- Consistencia de datos del perfil / check-in / plan.
+- Reducir fricción de la API key.
+
+### Next
+- Integración real con Health / Fit.
+- Resúmenes semanales.
+- Modo objetivo / race week.
+- Gamificación con sentido.
+
+### Later
+- Widgets.
+- Múltiples goals avanzados.
+- Exportaciones más sofisticadas.
+- Sharing social.
