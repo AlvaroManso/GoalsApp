@@ -7,10 +7,10 @@ import { getDB } from '../db/database';
 import { LoadingState, ErrorState, EmptyState } from '../components/UIStates';
 import { generateWeeklyPlan, PlanSession } from '../services/geminiService';
 import { saveApiKey, getApiKey } from '../services/secureStorage';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { saveTrainingPlan, getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
 import { saveActivity, deleteActivityByDateAndType, getActivities } from '../db/activities';
+import { getSetting, setSetting } from '../db/settings';
 
 type Props = TabScreenProps<'Dashboard'>;
 
@@ -94,27 +94,18 @@ export default function DashboardScreen({ navigation }: Props) {
   };
 
   useEffect(() => {
-    const loadSavedPreferences = async () => {
-      try {
-        const savedPrefs = await AsyncStorage.getItem('user-preferences');
-        if (savedPrefs !== null) {
-          setUserPreferences(savedPrefs);
-        }
-      } catch (e) {
-        console.error('Error loading preferences', e);
-      }
-    };
-    loadSavedPreferences();
+    const savedPrefs = getSetting('user-preferences');
+    if (savedPrefs !== null) {
+      setUserPreferences(savedPrefs);
+    }
     loadEvents();
   }, []);
 
-  const handlePreferencesChange = async (text: string) => {
+  const handlePreferencesChange = (text: string) => {
     setUserPreferences(text);
     try {
-      await AsyncStorage.setItem('user-preferences', text);
-    } catch (e) {
-      console.error('Error saving preferences', e);
-    }
+      setSetting('user-preferences', text);
+    } catch {}
   };
 
   // Refresh on focus
@@ -522,14 +513,19 @@ export default function DashboardScreen({ navigation }: Props) {
                   'border-indigo-200 dark:border-indigo-900'
                 }`}
                 onPress={() => {
-                  if (!isRest && !isCompleted) { 
-                    navigation.navigate('Tracker', { 
-                      activityType: item.activityType,
-                      requiresGPS: item.requiresGPS,
-                      durationMinutes: item.durationMinutes,
-                      targetHRZone: item.targetHRZone,
-                      coachNotes: item.coachNotes
-                    });
+                  if (!isRest && !isCompleted) {
+                    try {
+                      navigation.navigate('Tracker', {
+                        activityType: item.activityType,
+                        requiresGPS: item.requiresGPS,
+                        durationMinutes: item.durationMinutes,
+                        targetHRZone: item.targetHRZone,
+                        coachNotes: item.coachNotes,
+                        planDate: item.date
+                      });
+                    } catch (e) {
+                      console.error('Navigation error in Dashboard:', e);
+                    }
                   } else if (isCompleted) {
                     handleUnmarkAsCompleted(item);
                   }
@@ -571,16 +567,21 @@ export default function DashboardScreen({ navigation }: Props) {
                 
                 {!isRest && !isCompleted && (
                   <View className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex-row justify-between items-center">
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       className="bg-indigo-600/10 dark:bg-indigo-900/30 px-3 py-2 rounded-lg"
                       onPress={() => {
-                        navigation.navigate('Tracker', { 
-                          activityType: item.activityType,
-                          requiresGPS: item.requiresGPS,
-                          durationMinutes: item.durationMinutes,
-                          targetHRZone: item.targetHRZone,
-                          coachNotes: item.coachNotes
-                        });
+                        try {
+                          navigation.navigate('Tracker', {
+                            activityType: item.activityType,
+                            requiresGPS: item.requiresGPS,
+                            durationMinutes: item.durationMinutes,
+                            targetHRZone: item.targetHRZone,
+                            coachNotes: item.coachNotes,
+                            planDate: item.date
+                          });
+                        } catch (e) {
+                          console.error('Navigation error in Dashboard:', e);
+                        }
                       }}
                     >
                       <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">{t('dashboard.startTracker')}</Text>

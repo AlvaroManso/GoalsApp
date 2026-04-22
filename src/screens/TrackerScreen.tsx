@@ -154,10 +154,14 @@ export default function TrackerScreen({ route, navigation }: Props) {
   };
 
   const handleExit = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate('MainTabs');
+    try {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('MainTabs');
+      }
+    } catch (e) {
+      console.error('Error al cerrar tracker:', e);
     }
   };
 
