@@ -110,6 +110,7 @@ export const generatePlanViaBackend = async (payload: {
   strengthAvailability: number;
   equipment: string[];
   userPreferences?: string;
+  language?: string;
 }): Promise<PlanSession[]> => {
   const key = getCacheKey('generatePlan', payload);
   return withMemoryCache(key, 2 * 60 * 1000, async () => {
@@ -120,6 +121,7 @@ export const generatePlanViaBackend = async (payload: {
 
 export const coachChatViaBackend = async (payload: {
   message: string;
+  language?: string;
   planContext: Array<{
     date?: string;
     activityType: string;
@@ -137,6 +139,7 @@ export const proactiveCoachViaBackend = async (payload: {
   today: string;
   fatigue: number;
   jointPain: number;
+  language?: string;
   planContext: Array<{
     date?: string;
     activityType: string;

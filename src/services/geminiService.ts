@@ -1,6 +1,7 @@
 import { getApiKey } from './secureStorage';
 import { parseAIResponse } from '../utils/sanitizer';
 import { generatePlanViaBackend, hasAiBackend } from './aiBackend';
+import i18n from '../i18n';
 
 const SYSTEM_PROMPT = `Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un macrociclo de entrenamiento para las próximas 52 semanas (1 año completo) estructurado en formato JSON puro.
 REGLAS FISIOLÓGICAS INQUEBRANTABLES:
@@ -52,6 +53,7 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
         strengthAvailability: params.strengthAvailability,
         equipment: params.equipment,
         userPreferences: params.userPreferences,
+        language: i18n.language,
       });
       if (params.onProgress) params.onProgress(100);
       return plan;
@@ -68,7 +70,8 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
 Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${params.runAvailability} run, ${params.strengthAvailability} fuerza.
 Equipamiento disponible en el sitio: [${params.equipment.length > 0 ? params.equipment.join(', ') : 'Ninguno, solo exterior'}].
 ${params.userPreferences ? `Preferencias y condiciones del usuario: "${params.userPreferences}"` : ''}
-Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
+Genera el plan de entrenamiento macrociclo de 52 semanas en JSON. 
+IMPORTANTE: El campo 'coachNotes' DEBE estar escrito en el idioma con código '${i18n.language}'.`;
 
     console.log('Enviando prompt a Gemini:', dynamicPrompt);
 

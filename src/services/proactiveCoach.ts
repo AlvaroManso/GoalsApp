@@ -4,6 +4,7 @@ import { getDB } from '../db/database';
 import { Alert } from 'react-native';
 import { getActivities } from '../db/activities';
 import { hasAiBackend, proactiveCoachViaBackend } from './aiBackend';
+import i18n from '../i18n';
 
 export const analyzeCheckinProactively = async (): Promise<boolean> => {
   try {
@@ -39,6 +40,7 @@ export const analyzeCheckinProactively = async (): Promise<boolean> => {
         today,
         fatigue: checkin.fatigue,
         jointPain: checkin.jointPain,
+        language: i18n.language,
         planContext: planContextItems
       });
 
@@ -80,9 +82,9 @@ Si crees que NO es necesario, devuelve texto vacío o "NO_CHANGE".
 Si crees que SÍ es necesario, DEBES DEVOLVER ESTRICTAMENTE un JSON (sin markdown) con esta estructura:
 {
   "type": "PLAN_UPDATE",
-  "message": "He analizado tus métricas y veo que tu cuerpo pide un respiro. Como tu coach, mi prioridad es evitar lesiones. ¿Te parece si cambiamos la sesión de hoy por recuperación activa para volver más fuertes mañana?",
+  "message": "[Mensaje empático escrito en el idioma con código '${i18n.language}' sugiriendo la recuperación o ajuste]",
   "updates": [
-    { "date": "${today}", "activityType": "Recovery", "durationMinutes": 30, "targetHRZone": "Z1", "coachNotes": "Recuperación activa por fatiga alta", "requiresGPS": false }
+    { "date": "${today}", "activityType": "Recovery", "durationMinutes": 30, "targetHRZone": "Z1", "coachNotes": "[Notas en el idioma '${i18n.language}']", "requiresGPS": false }
   ]
 }
 No devuelvas NADA MÁS que el JSON si decides actualizar.`;

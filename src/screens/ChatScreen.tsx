@@ -5,6 +5,7 @@ import { getApiKey } from '../services/secureStorage';
 import { getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
 import { parseAIResponse } from '../utils/sanitizer';
 import { coachChatViaBackend, hasAiBackend } from '../services/aiBackend';
+import i18n from '../i18n';
 
 type Props = TabScreenProps<'Chat'>;
 
@@ -55,6 +56,7 @@ export default function ChatScreen({ navigation }: Props) {
       if (hasAiBackend()) {
         const backendResponse = await coachChatViaBackend({
           message: userText,
+          language: i18n.language,
           planContext: planContextItems,
         });
 
@@ -110,7 +112,7 @@ export default function ChatScreen({ navigation }: Props) {
 
       const generateWithModel = async (modelId: string, promptText: string): Promise<string> => {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-        const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta.
+        const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta en el idioma '${i18n.language}'.
 Aquí tienes los próximos 60 días de su plan de entrenamiento actual:
 ---
 ${planContext}

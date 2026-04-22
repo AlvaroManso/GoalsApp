@@ -199,6 +199,7 @@ exports.generatePlan = onRequest({ cors: true, region: 'europe-west1', secrets: 
       strengthAvailability,
       equipment = [],
       userPreferences,
+      language = 'es',
     } = req.body || {};
 
     const eventsList = events.map((e) => `${e.type} (Prioridad ${e.priority}) el ${e.date}`).join(', ');
@@ -206,7 +207,8 @@ exports.generatePlan = onRequest({ cors: true, region: 'europe-west1', secrets: 
 Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${runAvailability} run, ${strengthAvailability} fuerza.
 Equipamiento disponible en el sitio: [${equipment.length > 0 ? equipment.join(', ') : 'Ninguno, solo exterior'}].
 ${userPreferences ? `Preferencias y condiciones del usuario: "${userPreferences}"` : ''}
-Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.`;
+Genera el plan de entrenamiento macrociclo de 52 semanas en JSON. 
+IMPORTANTE: El campo 'coachNotes' DEBE estar escrito en el idioma con código '${language}'.`;
 
     const text = await generateWithFallback(() => ({
       systemInstruction: {
@@ -247,8 +249,8 @@ exports.coachChat = onRequest({ cors: true, region: 'europe-west1', secrets: ['G
 
   try {
     validatePayloadSize(req);
-    const { message, planContext = [] } = req.body || {};
-    const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta.
+    const { message, planContext = [], language = 'es' } = req.body || {};
+    const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta en el idioma '${language}'.
 Aquí tienes los próximos 60 días de su plan de entrenamiento actual:
 ---
 ${JSON.stringify(planContext)}
@@ -308,7 +310,7 @@ exports.proactiveCoach = onRequest({ cors: true, region: 'europe-west1', secrets
 
   try {
     validatePayloadSize(req);
-    const { today, fatigue, jointPain, planContext = [] } = req.body || {};
+    const { today, fatigue, jointPain, planContext = [], language = 'es' } = req.body || {};
 
     const systemPrompt = `Eres un entrenador de atletismo de élite. Tu atleta acaba de registrar su estado diario hoy (${today}):
 - Fatiga: ${fatigue}/10
@@ -322,9 +324,9 @@ Si crees que NO es necesario, devuelve texto vacío o "NO_CHANGE".
 Si crees que SÍ es necesario, DEBES DEVOLVER ESTRICTAMENTE un JSON (sin markdown) con esta estructura:
 {
   "type": "PLAN_UPDATE",
-  "message": "He analizado tus métricas y veo que tu cuerpo pide un respiro. Como tu coach, mi prioridad es evitar lesiones. ¿Te parece si cambiamos la sesión de hoy por recuperación activa para volver más fuertes mañana?",
+  "message": "[Mensaje empático escrito en el idioma con código '${language}' sugiriendo la recuperación o ajuste]",
   "updates": [
-    { "date": "${today}", "activityType": "Recovery", "durationMinutes": 30, "targetHRZone": "Z1", "coachNotes": "Recuperación activa por fatiga alta", "requiresGPS": false }
+    { "date": "${today}", "activityType": "Recovery", "durationMinutes": 30, "targetHRZone": "Z1", "coachNotes": "[Notas en el idioma '${language}']", "requiresGPS": false }
   ]
 }
 No devuelvas NADA MÁS que el JSON si decides actualizar.`;
