@@ -7,12 +7,15 @@
 - Parche persistente de `react-native-css-interop` para estabilizar la interacción con React Navigation.
 - Recarga de datos en `focus` para la pantalla de Calendario.
 - Documento de handoff en `docs/CURRENT_STATE.md` para continuidad entre sesiones.
+- Utilidades de gamificación: rachas, resumen semanal y modo objetivo / race week.
+- Estructura inicial de backend con Firebase Functions para mover `generatePlan` y `coachChat` fuera del cliente.
 
 ### Changed
 - Consolidación visual en tema oscuro fijo para toda la app.
 - Reestructuración de la navegación con un único `NavigationContainer` en la raíz.
 - Saneado de tipados de navegación, base de datos e internacionalización.
 - Documentación del roadmap de producto en `docs/sprint-01/README.md` y `docs/CURRENT_STATE.md`.
+- La app puede usar un backend propio mediante `EXPO_PUBLIC_AI_BACKEND_URL`; si no existe, mantiene el modo actual BYOK en cliente.
 
 ### Fixed
 - Error crítico `Couldn't find a navigation context`.

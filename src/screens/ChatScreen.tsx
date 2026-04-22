@@ -4,6 +4,7 @@ import { TabScreenProps } from '../types/navigation';
 import { getApiKey } from '../services/secureStorage';
 import { getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
 import { parseAIResponse } from '../utils/sanitizer';
+import { coachChatViaBackend, hasAiBackend } from '../services/aiBackend';
 
 type Props = TabScreenProps<'Chat'>;
 
@@ -37,22 +38,52 @@ export default function ChatScreen({ navigation }: Props) {
     setIsTyping(true);
 
     try {
-      const apiKey = await getApiKey();
-      if (!apiKey) throw new Error('API Key no configurada');
-
       const plan = getAllTrainingPlan();
       // Extract the next 60 days to avoid huge payload, but sufficient for short-term edits
       const todayDate = new Date().toISOString().split('T')[0];
       const futurePlan = plan.filter(p => p.date && p.date >= todayDate).slice(0, 60);
 
-      const planContext = JSON.stringify(futurePlan.map(p => ({
+      const planContextItems = futurePlan.map(p => ({
         date: p.date,
         activityType: p.activityType,
         durationMinutes: p.durationMinutes,
         targetHRZone: p.targetHRZone,
         coachNotes: p.coachNotes,
         requiresGPS: p.requiresGPS
-      })));
+      }));
+
+      if (hasAiBackend()) {
+        const backendResponse = await coachChatViaBackend({
+          message: userText,
+          planContext: planContextItems,
+        });
+
+        if (backendResponse.type === 'PLAN_UPDATE' && Array.isArray(backendResponse.updates)) {
+          updatePlanSessions(backendResponse.updates);
+          const newAiMsg: Message = {
+            id: Date.now().toString() + 'A',
+            text: backendResponse.message + '\n\n✅ ¡Plan actualizado en la base de datos!',
+            isUser: false,
+          };
+          setMessages(prev => [...prev, newAiMsg]);
+          setIsTyping(false);
+          return;
+        }
+
+        const newAiMsg: Message = {
+          id: Date.now().toString() + 'A',
+          text: backendResponse.message,
+          isUser: false,
+        };
+        setMessages(prev => [...prev, newAiMsg]);
+        setIsTyping(false);
+        return;
+      }
+
+      const apiKey = await getApiKey();
+      if (!apiKey) throw new Error('API Key no configurada');
+
+      const planContext = JSON.stringify(planContextItems);
 
       const listModels = async (): Promise<string[]> => {
         const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;

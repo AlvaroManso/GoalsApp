@@ -63,7 +63,7 @@ export const injectMockActivities = () => {
           act.calories,
           act.avgHR,
           act.routeCoordinates,
-          act.type
+          act.type ?? 'Running'
         ]);
       });
     });

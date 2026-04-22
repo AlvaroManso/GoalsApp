@@ -1,5 +1,6 @@
 import { getApiKey } from './secureStorage';
 import { parseAIResponse } from '../utils/sanitizer';
+import { generatePlanViaBackend, hasAiBackend } from './aiBackend';
 
 const SYSTEM_PROMPT = `Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un macrociclo de entrenamiento para las próximas 52 semanas (1 año completo) estructurado en formato JSON puro.
 REGLAS FISIOLÓGICAS INQUEBRANTABLES:
@@ -38,6 +39,24 @@ interface GeneratePlanParams {
 
 export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<PlanSession[]> => {
   try {
+    if (hasAiBackend()) {
+      if (params.onProgress) params.onProgress(15);
+      const plan = await generatePlanViaBackend({
+        age: params.age,
+        gender: params.gender,
+        restingHR: params.restingHR,
+        fatigue: params.fatigue,
+        jointPain: params.jointPain,
+        events: params.events,
+        runAvailability: params.runAvailability,
+        strengthAvailability: params.strengthAvailability,
+        equipment: params.equipment,
+        userPreferences: params.userPreferences,
+      });
+      if (params.onProgress) params.onProgress(100);
+      return plan;
+    }
+
     const apiKey = await getApiKey();
     if (!apiKey) {
       throw new Error('No se ha configurado una API Key de Gemini.');

@@ -7,7 +7,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "functions:install": "npm install --prefix functions",
+    "functions:serve": "npm run serve --prefix functions",
+    "functions:deploy": "npm run deploy --prefix functions"
   },
   "dependencies": {
     "@expo/metro-config": "~54.0.14",
@@ -30,6 +33,7 @@
     "expo-sharing": "~14.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "firebase": "^12.12.1",
     "i18next": "^26.0.6",
     "nativewind": "^4.2.3",
     "react": "19.1.0",
