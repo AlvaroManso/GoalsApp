@@ -6,6 +6,7 @@ import { getDB } from '../db/database';
 import { checkDailyReadiness } from '../utils/physiology';
 import { updatePlanSessions } from '../db/trainingPlan';
 import { analyzeCheckinProactively } from '../services/proactiveCoach';
+import { useTranslation } from 'react-i18next';
 
 type Props = RootStackScreenProps<'CheckIn'>;
 
@@ -13,6 +14,7 @@ export default function CheckInScreen({ navigation }: Props) {
   const [fatigue, setFatigue] = useState<number>(5);
   const [jointPain, setJointPain] = useState<number>(1);
   const [sleepQuality, setSleepQuality] = useState<string>('Bien');
+  const { t } = useTranslation();
 
   const handleSave = () => {
     try {
@@ -70,15 +72,15 @@ export default function CheckInScreen({ navigation }: Props) {
       className="flex-1 bg-gray-50 dark:bg-gray-900"
     >
       <ScrollView className="flex-1 px-6 pt-16">
-        <Text className="text-3xl text-gray-900 dark:text-white font-bold mb-2">Check-in Diario</Text>
-        <Text className="text-gray-500 dark:text-gray-400 mb-8 text-lg">¿Cómo te sientes hoy?</Text>
+        <Text className="text-3xl text-gray-900 dark:text-white font-bold mb-2">{t('checkin.title', 'Check-in Diario')}</Text>
+        <Text className="text-gray-500 dark:text-gray-400 mb-8 text-lg">{t('checkin.subtitle', '¿Cómo te sientes hoy?')}</Text>
 
         <View className="mb-8">
           <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-900 dark:text-white font-semibold text-lg">Nivel de Fatiga</Text>
+            <Text className="text-gray-900 dark:text-white font-semibold text-lg">{t('checkin.fatigue', 'Nivel de Fatiga')}</Text>
             <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">{fatigue}/10</Text>
           </View>
-          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-4">1 = Fresco como una lechuga, 10 = Destruido</Text>
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-4">{t('checkin.fatigueDesc', '1 = Fresco como una lechuga, 10 = Destruido')}</Text>
           <Slider
             style={{ width: '100%', height: 40 }}
             minimumValue={1}
@@ -94,10 +96,10 @@ export default function CheckInScreen({ navigation }: Props) {
 
         <View className="mb-8">
           <View className="flex-row justify-between mb-2">
-            <Text className="text-gray-900 dark:text-white font-semibold text-lg">Dolor Articular</Text>
+            <Text className="text-gray-900 dark:text-white font-semibold text-lg">{t('checkin.jointPain', 'Dolor Articular')}</Text>
             <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">{jointPain}/10</Text>
           </View>
-          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-4">1 = Sin dolor, 10 = Lesión aguda</Text>
+          <Text className="text-gray-500 dark:text-gray-400 text-sm mb-4">{t('checkin.jointPainDesc', '1 = Sin dolor, 10 = Lesión aguda')}</Text>
           <Slider
             style={{ width: '100%', height: 40 }}
             minimumValue={1}
@@ -112,9 +114,13 @@ export default function CheckInScreen({ navigation }: Props) {
         </View>
 
         <View className="mb-8">
-          <Text className="text-gray-900 dark:text-white font-semibold text-lg mb-4">¿Dormiste bien?</Text>
+          <Text className="text-gray-900 dark:text-white font-semibold text-lg mb-4">{t('checkin.sleep', '¿Dormiste bien?')}</Text>
           <View className="flex-row justify-between">
-            {['Terrible', 'Regular', 'Bien', 'Excelente'].map(quality => (
+            {['Terrible', 'Regular', 'Bien', 'Excelente'].map(quality => {
+              const label = quality === 'Terrible' ? t('checkin.sleepTerrible', 'Terrible') :
+                            quality === 'Regular' ? t('checkin.sleepRegular', 'Regular') :
+                            quality === 'Bien' ? t('checkin.sleepGood', 'Bien') : t('checkin.sleepExcellent', 'Excelente');
+              return (
               <TouchableOpacity
                 key={quality}
                 onPress={() => setSleepQuality(quality)}
@@ -125,10 +131,10 @@ export default function CheckInScreen({ navigation }: Props) {
                 }`}
               >
                 <Text className={sleepQuality === quality ? 'text-white font-bold' : 'text-gray-600 dark:text-gray-400'}>
-                  {quality}
+                  {label}
                 </Text>
               </TouchableOpacity>
-            ))}
+            )})}
           </View>
         </View>
 
@@ -136,7 +142,7 @@ export default function CheckInScreen({ navigation }: Props) {
           className="bg-indigo-600 py-4 rounded-xl items-center mb-10 shadow-lg shadow-indigo-500/50"
           onPress={handleSave}
         >
-          <Text className="text-white font-bold text-lg">Registrar y Continuar</Text>
+          <Text className="text-white font-bold text-lg">{t('checkin.save', 'Registrar y Continuar')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

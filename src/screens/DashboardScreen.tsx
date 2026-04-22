@@ -12,6 +12,7 @@ import { saveTrainingPlan, getAllTrainingPlan, updatePlanSessions } from '../db/
 import { saveActivity, deleteActivityByDateAndType, getActivities, Activity } from '../db/activities';
 import { getSetting, setSetting } from '../db/settings';
 import { calculateStreak, getLastWeekSummary } from '../utils/gamification';
+import { formatDistance } from '../utils/units';
 
 type Props = TabScreenProps<'Dashboard'>;
 
@@ -45,6 +46,7 @@ export default function DashboardScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
+  const [distanceUnit, setDistanceUnit] = useState<'km' | 'mi'>('km');
   const [raceWeekEvent, setRaceWeekEvent] = useState<{ event: AppEvent, daysLeft: number } | null>(null);
   const { t } = useTranslation();
 
@@ -122,6 +124,9 @@ export default function DashboardScreen({ navigation }: Props) {
         return act.date.split('T')[0];
       });
       setCompletedDates(completed);
+
+      const unit = getSetting('distanceUnit') as 'km' | 'mi';
+      if (unit) setDistanceUnit(unit);
 
       // Calcular Gamificación (Streak y Resumen Semanal)
       const streak = calculateStreak(history);
@@ -584,7 +589,7 @@ export default function DashboardScreen({ navigation }: Props) {
             </View>
             <View className="items-center flex-1 border-l border-r border-gray-700 px-2">
               <Text className="text-gray-400 text-xs mb-1 uppercase">{t('gamification.totalDistance')}</Text>
-              <Text className="text-white font-bold text-xl">{weeklySummary.distanceKm} <Text className="text-xs font-normal text-gray-500">{t('gamification.kms')}</Text></Text>
+              <Text className="text-white font-bold text-xl">{formatDistance(weeklySummary.distanceKm, distanceUnit)} <Text className="text-xs font-normal text-gray-500">{distanceUnit}</Text></Text>
             </View>
             <View className="items-center flex-1">
               <Text className="text-gray-400 text-xs mb-1 uppercase">{t('gamification.caloriesBurned')}</Text>

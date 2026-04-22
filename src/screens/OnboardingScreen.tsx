@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, P
 import { RootStackScreenProps } from '../types/navigation';
 import { getDB } from '../db/database';
 import { calculateHeartRateZones } from '../utils/physiology';
+import { useTranslation } from 'react-i18next';
 
 type Props = RootStackScreenProps<'Onboarding'>;
 
@@ -12,6 +13,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const [maxHR, setMaxHR] = useState('');
   const [restingHR, setRestingHR] = useState('');
   const [gender, setGender] = useState('Prefiero no responder');
+  const { t } = useTranslation();
 
   const handleSave = () => {
     Keyboard.dismiss();
@@ -56,25 +58,30 @@ export default function OnboardingScreen({ navigation }: Props) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1 bg-gray-900 px-6 py-12 justify-center"
       >
-        <Text className="text-3xl text-white font-bold mb-8 text-center">Configura tu Perfil</Text>
+        <Text className="text-3xl text-white font-bold mb-8 text-center">{t('onboarding.title', 'Configura tu Perfil')}</Text>
         
         <View className="bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
-          <Text className="text-gray-400 mb-2">Género</Text>
+          <Text className="text-gray-400 mb-2">{t('profile.gender')}</Text>
           <View className="flex-row flex-wrap gap-2 mb-4">
-            {['Hombre', 'Mujer', 'Otro', 'Prefiero no responder'].map(option => (
+            {['Hombre', 'Mujer', 'Otro', 'Prefiero no responder'].map(option => {
+              const label = option === 'Hombre' ? t('profile.male') : 
+                            option === 'Mujer' ? t('profile.female') : 
+                            option === 'Otro' ? t('profile.other') : t('profile.preferNotToSay', 'Prefiero no responder');
+              return (
               <TouchableOpacity
                 key={option}
                 onPress={() => setGender(option)}
                 className={`px-3 py-2 rounded-xl border ${gender === option ? 'bg-indigo-600 border-indigo-500' : 'bg-gray-700 border-gray-600'}`}
               >
                 <Text className={gender === option ? 'text-white font-bold' : 'text-gray-400'}>
-                  {option}
+                  {label}
                 </Text>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
 
-          <Text className="text-gray-400 mb-2">Edad (años)</Text>
+          <Text className="text-gray-400 mb-2">{t('profile.age')}</Text>
           <TextInput
             className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
             placeholder="Ej: 30"
@@ -84,7 +91,7 @@ export default function OnboardingScreen({ navigation }: Props) {
             onChangeText={setAge}
           />
 
-          <Text className="text-gray-400 mb-2">Peso (kg)</Text>
+          <Text className="text-gray-400 mb-2">{t('profile.weight')} (kg / lbs)</Text>
           <TextInput
             className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
             placeholder="Ej: 75.5"
@@ -94,7 +101,7 @@ export default function OnboardingScreen({ navigation }: Props) {
             onChangeText={setWeight}
           />
 
-          <Text className="text-gray-400 mb-2">FC Máxima (ppm)</Text>
+          <Text className="text-gray-400 mb-2">{t('onboarding.maxHR', 'FC Máxima (ppm)')}</Text>
           <TextInput
             className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-4"
             placeholder="Ej: 190"
@@ -104,7 +111,7 @@ export default function OnboardingScreen({ navigation }: Props) {
             onChangeText={setMaxHR}
           />
 
-          <Text className="text-gray-400 mb-2">FC Reposo (ppm)</Text>
+          <Text className="text-gray-400 mb-2">{t('onboarding.restingHR', 'FC Reposo (ppm)')}</Text>
           <TextInput
             className="bg-gray-700 text-white rounded-lg px-4 py-3 mb-6"
             placeholder="Ej: 50"
@@ -118,7 +125,7 @@ export default function OnboardingScreen({ navigation }: Props) {
             className="bg-blue-600 rounded-xl py-4 items-center"
             onPress={handleSave}
           >
-            <Text className="text-white font-bold text-lg">Guardar Perfil</Text>
+            <Text className="text-white font-bold text-lg">{t('profile.save')}</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

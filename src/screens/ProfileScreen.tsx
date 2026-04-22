@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, P
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { getDB } from '../db/database';
-import { setSetting } from '../db/settings';
+import { getSetting, setSetting } from '../db/settings';
 import { RootStackScreenProps } from '../types/navigation';
 
 export default function ProfileScreen({ navigation }: RootStackScreenProps<'Profile'>) {
@@ -13,6 +13,8 @@ export default function ProfileScreen({ navigation }: RootStackScreenProps<'Prof
   const [age, setAge] = useState('');
   const [fitnessLevel, setFitnessLevel] = useState('');
   const [gender, setGender] = useState('Prefiero no responder');
+  const [distanceUnit, setDistanceUnit] = useState('km');
+  const [weightUnit, setWeightUnit] = useState('kg');
   const { t, i18n } = useTranslation();
 
   const changeLanguage = async (lng: string) => {
@@ -42,6 +44,10 @@ export default function ProfileScreen({ navigation }: RootStackScreenProps<'Prof
         setFitnessLevel((p as any).fitnessLevel || 'Beginner');
         setGender((p as any).gender || 'Prefiero no responder');
       }
+      const savedDist = getSetting('distanceUnit');
+      if (savedDist) setDistanceUnit(savedDist);
+      const savedWeight = getSetting('weightUnit');
+      if (savedWeight) setWeightUnit(savedWeight);
     } catch (e) {
       console.error(e);
     }
@@ -49,7 +55,7 @@ export default function ProfileScreen({ navigation }: RootStackScreenProps<'Prof
 
   const saveProfile = () => {
     if (!weight || !height || !age) {
-      Alert.alert('Error', 'Completa todos los campos');
+      Alert.alert('Error', t('profile.errorFields'));
       return;
     }
     
@@ -59,11 +65,13 @@ export default function ProfileScreen({ navigation }: RootStackScreenProps<'Prof
         'UPDATE UserProfile SET weight = ?, height = ?, age = ?, fitnessLevel = ?, gender = ? WHERE id = ?',
         [parseFloat(weight), parseFloat(height), parseInt(age, 10), fitnessLevel, gender, profile.id]
       );
-      Alert.alert('Éxito', 'Perfil actualizado correctamente');
+      setSetting('distanceUnit', distanceUnit);
+      setSetting('weightUnit', weightUnit);
+      Alert.alert(t('profile.title'), t('profile.successSave'));
       loadProfile();
     } catch (e) {
       console.error(e);
-      Alert.alert('Error', 'No se pudo actualizar el perfil');
+      Alert.alert('Error', t('profile.errorSave'));
     }
   };
 
@@ -106,10 +114,50 @@ export default function ProfileScreen({ navigation }: RootStackScreenProps<'Prof
           </View>
         </View>
 
+        <View className="bg-gray-800 p-6 rounded-2xl border border-gray-700 space-y-4 mb-6 shadow-sm">
+          <Text className="text-white font-bold text-lg mb-2">{t('profile.distanceUnit')}</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {[
+              { code: 'km', label: t('profile.km') },
+              { code: 'mi', label: t('profile.mi') }
+            ].map(unit => (
+              <TouchableOpacity
+                key={unit.code}
+                onPress={() => setDistanceUnit(unit.code)}
+                className={`px-4 py-3 rounded-xl border ${distanceUnit === unit.code ? 'bg-indigo-600 border-indigo-500' : 'bg-gray-900 border-gray-700'}`}
+              >
+                <Text className={distanceUnit === unit.code ? 'text-white font-bold' : 'text-gray-400'}>
+                  {unit.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View className="bg-gray-800 p-6 rounded-2xl border border-gray-700 space-y-4 mb-6 shadow-sm">
+          <Text className="text-white font-bold text-lg mb-2">{t('profile.weightUnit')}</Text>
+          <View className="flex-row flex-wrap gap-2">
+            {[
+              { code: 'kg', label: t('profile.kg') },
+              { code: 'lbs', label: t('profile.lbs') }
+            ].map(unit => (
+              <TouchableOpacity
+                key={unit.code}
+                onPress={() => setWeightUnit(unit.code)}
+                className={`px-4 py-3 rounded-xl border ${weightUnit === unit.code ? 'bg-indigo-600 border-indigo-500' : 'bg-gray-900 border-gray-700'}`}
+              >
+                <Text className={weightUnit === unit.code ? 'text-white font-bold' : 'text-gray-400'}>
+                  {unit.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
         <View className="bg-gray-800 p-6 rounded-2xl border border-gray-700 space-y-4 shadow-sm">
           
           <View>
-            <Text className="text-gray-400 mb-2">{t('profile.weight')}</Text>
+            <Text className="text-gray-400 mb-2">{t('profile.weight')} ({weightUnit})</Text>
             <TextInput
               value={weight}
               onChangeText={setWeight}
