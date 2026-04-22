@@ -1,0 +1,77 @@
+diff --git a/node_modules/react-native-css-interop/dist/runtime/native/render-component.js b/node_modules/react-native-css-interop/dist/runtime/native/render-component.js
+index eba25ec..ffb4268 100644
+--- a/node_modules/react-native-css-interop/dist/runtime/native/render-component.js
++++ b/node_modules/react-native-css-interop/dist/runtime/native/render-component.js
+@@ -30,14 +30,14 @@ function renderComponent(baseComponent, state, props, possiblyAnimatedProps, var
+         }, getDebugReplacer(), 2)}`);
+     }
+     if (state.pressable !== exports.UpgradeState.NONE) {
+-        if (process.env.NODE_ENV !== "production") {
+-            if (shouldWarn && state.pressable === exports.UpgradeState.SHOULD_UPGRADE) {
+-                printUpgradeWarning(`Converting View to Pressable should only happen during the initial render otherwise it will remount the View.\n\nTo prevent this warning avoid adding styles which use pseudo-classes (e.g :hover, :active, :focus) to View components after the initial render, or change the View to a Pressable`, state.originalProps);
+-            }
++        if (shouldWarn && state.pressable === exports.UpgradeState.SHOULD_UPGRADE) {
++            // DO NOTHING
++        }
++        else {
++            component = react_native_1.Pressable;
++            state.pressable = exports.UpgradeState.UPGRADED;
++            props.cssInterop = false;
+         }
+-        component = react_native_1.Pressable;
+-        state.pressable = exports.UpgradeState.UPGRADED;
+-        props.cssInterop = false;
+     }
+     if (state.animated !== exports.UpgradeState.NONE) {
+         if (shouldWarn && state.animated === exports.UpgradeState.SHOULD_UPGRADE) {
+@@ -76,30 +76,30 @@ function renderComponent(baseComponent, state, props, possiblyAnimatedProps, var
+         props = { ...props, ...possiblyAnimatedProps };
+     }
+     if (state.variables !== exports.UpgradeState.NONE) {
+-        if (process.env.NODE_ENV !== "production") {
+-            if (shouldWarn && state.variables === exports.UpgradeState.SHOULD_UPGRADE) {
+-                printUpgradeWarning(`Components need to set a variable during the initial render otherwise they will remount.\n\nTo prevent this warning avoid dynamically adding CSS variables components after the initial render, or ensure it has a default style that sets either a CSS variable`, state.originalProps);
+-            }
++        if (shouldWarn && state.variables === exports.UpgradeState.SHOULD_UPGRADE) {
++            // DO NOTHING
++        }
++        else {
++            state.variables = exports.UpgradeState.UPGRADED;
++            props = {
++                value: variables,
++                children: (0, react_1.createElement)(component, props),
++            };
++            component = styles_1.VariableContext.Provider;
+         }
+-        state.variables = exports.UpgradeState.UPGRADED;
+-        props = {
+-            value: variables,
+-            children: (0, react_1.createElement)(component, props),
+-        };
+-        component = styles_1.VariableContext.Provider;
+     }
+     if (state.containers !== exports.UpgradeState.NONE) {
+-        if (process.env.NODE_ENV !== "production") {
+-            if (shouldWarn && state.containers === exports.UpgradeState.SHOULD_UPGRADE) {
+-                printUpgradeWarning(`Components need to marked as a container during the initial render otherwise they will remount.\n\nTo prevent this warning avoid dynamically container styles to a component after the initial render, or ensure it has a default style that sets "container: none" or "container-type: none"`, state.originalProps);
+-            }
++        if (shouldWarn && state.containers === exports.UpgradeState.SHOULD_UPGRADE) {
++            // DO NOTHING
++        }
++        else {
++            state.containers = exports.UpgradeState.UPGRADED;
++            props = {
++                value: containers,
++                children: (0, react_1.createElement)(component, props),
++            };
++            component = globals_1.containerContext.Provider;
+         }
+-        state.containers = exports.UpgradeState.UPGRADED;
+-        props = {
+-            value: containers,
+-            children: (0, react_1.createElement)(component, props),
+-        };
+-        component = globals_1.containerContext.Provider;
+     }
+     state.canUpgradeWarn = process.env.NODE_ENV !== "production";
+     return (0, react_1.createElement)(component, props);

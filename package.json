@@ -6,10 +6,12 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo/metro-config": "~54.0.14",
+    "@expo/vector-icons": "^15.1.1",
     "@google/generative-ai": "^0.24.1",
     "@react-native-async-storage/async-storage": "^3.0.2",
     "@react-native-community/datetimepicker": "8.4.4",
@@ -29,6 +31,7 @@
     "react-i18next": "^17.0.4",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1314.0",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-maps": "1.20.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0"
@@ -36,6 +39,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "babel-preset-expo": "^55.0.17",
+    "patch-package": "^8.0.0",
     "tailwindcss": "^3.3.2",
     "typescript": "~5.9.2"
   },
