@@ -40,6 +40,13 @@
       "expo-sqlite",
       "expo-secure-store",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#ffffff"
+        }
+      ],
+      [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Allow GoalsApp to use your location for background tracking of your runs.",

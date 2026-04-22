@@ -277,7 +277,7 @@ export default function DashboardScreen({ navigation }: Props) {
       const newPlan = getAllTrainingPlan();
       setPlan(newPlan);
       
-      Alert.alert('Éxito', t('dashboard.successPlan'));
+      Alert.alert('¡Plan Generado!', 'Hemos diseñado un macrociclo de 52 semanas adaptado 100% a tu fisiología. ¡Revísalo en el Calendario!');
     } catch (error: any) {
       console.error('Error in handleGeneratePlan:', error);
       Alert.alert('Error', error.message || t('dashboard.errorPlan'));
@@ -296,8 +296,8 @@ export default function DashboardScreen({ navigation }: Props) {
       await saveApiKey(tempApiKey.trim());
       setIsApiKeyModalVisible(false);
       setTempApiKey('');
-      Alert.alert('Éxito', 'API Key guardada correctamente. Ahora puedes generar tu plan.', [
-        { text: 'Generar Plan', onPress: handleGeneratePlan }
+      Alert.alert('¡Llave IA Configurada!', 'Ahora sí, prepárate para generar el plan de entrenamiento definitivo.', [
+        { text: 'Diseñar Mi Plan', onPress: handleGeneratePlan }
       ]);
     } catch (error) {
       Alert.alert('Error', 'No se pudo guardar la API Key.');

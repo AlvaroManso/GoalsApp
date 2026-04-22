@@ -4,6 +4,8 @@ import Slider from '@react-native-community/slider';
 import { RootStackScreenProps } from '../types/navigation';
 import { getDB } from '../db/database';
 import { checkDailyReadiness } from '../utils/physiology';
+import { updatePlanSessions } from '../db/trainingPlan';
+import { analyzeCheckinProactively } from '../services/proactiveCoach';
 
 type Props = RootStackScreenProps<'CheckIn'>;
 
@@ -24,11 +26,36 @@ export default function CheckInScreen({ navigation }: Props) {
 
       const readiness = checkDailyReadiness(fatigue, jointPain);
       
+      // Update plan for today based on readiness
+      if (!readiness.canRun) {
+        updatePlanSessions([{
+          date: today,
+          activityType: 'Rest',
+          durationMinutes: 0,
+          targetHRZone: '',
+          coachNotes: 'Actualizado automáticamente: ' + readiness.message,
+          requiresGPS: false
+        }]);
+      } else if (fatigue > 8) {
+        updatePlanSessions([{
+          date: today,
+          targetHRZone: 'Z1',
+          coachNotes: 'Actualizado automáticamente: ' + readiness.suggestion
+        }]);
+      }
+
       Alert.alert(
         readiness.canRun ? '¡A Entrenar!' : 'Alerta de Descanso',
         `${readiness.message}\n\n${readiness.suggestion}`,
         [
-          { text: 'Ir al Dashboard', onPress: () => navigation.replace('MainTabs') }
+          { 
+            text: 'Ir al Dashboard', 
+            onPress: () => {
+              navigation.replace('MainTabs');
+              // Run silent analysis in background
+              analyzeCheckinProactively();
+            } 
+          }
         ]
       );
     } catch (error) {

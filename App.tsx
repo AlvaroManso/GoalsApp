@@ -9,6 +9,7 @@ import { useColorScheme } from 'nativewind';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initDB } from './src/db/database';
 import { hydrateLanguageFromDB } from './src/i18n';
+import { scheduleDailyReminders } from './src/services/notificationService';
 
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
@@ -24,6 +25,7 @@ export default function App() {
         setColorScheme('dark');
         initDB();
         await hydrateLanguageFromDB();
+        scheduleDailyReminders().catch(err => console.log('Error scheduling notifications:', err));
         setDbReady(true);
       } catch (error) {
         console.error('Error in App DB init:', error);

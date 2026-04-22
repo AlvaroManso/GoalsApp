@@ -29,6 +29,7 @@ Para no perder el control de los cambios como nos pasó en la sesión anterior (
   - React Native y Expo pueden ser muy sensibles a cambios en el `package.json`. Si instalas algo nuevo y la navegación o la UI se rompen, haz un `git checkout` de tu `package.json`, borra `node_modules` y vuelve a ejecutar `npm install`.
 - **Documenta tus avances**:
   - Mantén actualizado este documento (`docs/CURRENT_STATE.md`) cuando cierres una sesión importante para no perder contexto.
+  - Mantén también actualizado `docs/versioning/VERSIONING.md` para reflejar cambios funcionales, fixes y decisiones de producto relevantes.
 
 ## 4. Trabajo Pendiente Recomendado
 - Sincronización real con Apple HealthKit / Google Fit aún está pendiente (actualmente se está usando un Mock).

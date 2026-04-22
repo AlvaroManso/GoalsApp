@@ -78,5 +78,20 @@
     "beginner": "初学者",
     "intermediate": "中级",
     "advanced": "高级"
+  },
+  "calendarScreen": {
+    "title": "您的计划",
+    "exportICS": "导出",
+    "eventsToday": "⚡ 今日挑战：",
+    "goToTracker": "开始训练 ▶",
+    "noTraining": "战略休息日。为下一场战斗恢复能量！",
+    "noEventsExport": "您的计划为空。请先生成一个！",
+    "exportSuccess": "计划导出成功！",
+    "exportError": "哎呀，导出计划时出了点问题。",
+    "cantShare": "您的设备不支持分享此文件。",
+    "importICS": "导入",
+    "importSuccess": "计划导入并更新成功！",
+    "importError": "无法读取日历文件。",
+    "importCancel": "导入已取消。"
   }
 }

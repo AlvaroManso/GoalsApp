@@ -78,5 +78,20 @@
     "beginner": "Principiante",
     "intermediate": "Medio",
     "advanced": "Avanzado"
+  },
+  "calendarScreen": {
+    "title": "Tu Plan",
+    "exportICS": "Exportar",
+    "eventsToday": "⚡ TUS RETOS DE HOY:",
+    "goToTracker": "¡A Entrenar! ▶",
+    "noTraining": "Día de descanso estratégico. ¡Recupera energías para la próxima batalla!",
+    "noEventsExport": "Tu plan está vacío. ¡Genera uno primero!",
+    "exportSuccess": "¡Plan exportado con éxito!",
+    "exportError": "Ups, algo falló al exportar tu plan.",
+    "cantShare": "Tu dispositivo no soporta compartir este archivo.",
+    "importICS": "Importar",
+    "importSuccess": "¡Plan importado y actualizado con éxito!",
+    "importError": "No se pudo leer el archivo de calendario.",
+    "importCancel": "Importación cancelada."
   }
 }

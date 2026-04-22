@@ -78,5 +78,20 @@
     "beginner": "Beginner",
     "intermediate": "Intermediate",
     "advanced": "Advanced"
+  },
+  "calendarScreen": {
+    "title": "Your Plan",
+    "exportICS": "Export",
+    "eventsToday": "⚡ TODAY'S CHALLENGES:",
+    "goToTracker": "Start Training ▶",
+    "noTraining": "Strategic rest day. Recover your energy for the next battle!",
+    "noEventsExport": "Your plan is empty. Generate one first!",
+    "exportSuccess": "Plan exported successfully!",
+    "exportError": "Oops, something went wrong exporting your plan.",
+    "cantShare": "Your device doesn't support sharing this file.",
+    "importICS": "Import",
+    "importSuccess": "Plan imported and updated successfully!",
+    "importError": "Could not read the calendar file.",
+    "importCancel": "Import cancelled."
   }
 }

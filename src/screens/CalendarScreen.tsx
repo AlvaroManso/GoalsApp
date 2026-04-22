@@ -4,6 +4,9 @@ import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { getAllTrainingPlan, PlanSession } from '../db/trainingPlan';
 import { getEvents, AppEvent } from '../db/events';
 import { TabScreenProps } from '../types/navigation';
+import { exportPlanToICS } from '../utils/icsExport';
+import { importPlanFromICS } from '../utils/icsImport';
+import { useTranslation } from 'react-i18next';
 
 LocaleConfig.locales['es'] = {
   monthNames: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
@@ -17,6 +20,7 @@ LocaleConfig.defaultLocale = 'es';
 type Props = TabScreenProps<'Calendar'>;
 
 export default function CalendarScreen({ navigation }: Props) {
+  const { t } = useTranslation();
   const [plan, setPlan] = useState<PlanSession[]>([]);
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [markedDates, setMarkedDates] = useState<any>({});
@@ -67,7 +71,23 @@ export default function CalendarScreen({ navigation }: Props) {
 
   return (
     <View className="flex-1 bg-gray-900 pt-12 px-4">
-      <Text className="text-3xl text-white font-bold mb-6">Calendario</Text>
+      <View className="flex-row justify-between items-center mb-6">
+        <Text className="text-3xl text-white font-bold">{t('calendarScreen.title')}</Text>
+        <View className="flex-row space-x-2">
+          <TouchableOpacity 
+            onPress={() => importPlanFromICS(t, loadData)}
+            className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-700 shadow-sm mr-2"
+          >
+            <Text className="text-gray-300 font-bold">{t('calendarScreen.importICS')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => exportPlanToICS(plan, t)}
+            className="bg-indigo-600 px-4 py-2 rounded-lg shadow-sm"
+          >
+            <Text className="text-white font-bold">{t('calendarScreen.exportICS')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <Calendar
         current={selectedDate}
@@ -105,7 +125,7 @@ export default function CalendarScreen({ navigation }: Props) {
 
         {selectedEvents.length > 0 && (
           <View className="mb-4">
-            <Text className="text-red-400 font-bold mb-2">EVENTOS HOY:</Text>
+            <Text className="text-red-400 font-bold mb-2">{t('calendarScreen.eventsToday')}</Text>
             {selectedEvents.map((e, idx) => (
               <View key={idx} className="bg-red-900/20 p-4 rounded-xl border border-red-800 mb-2">
                 <Text className="text-white font-bold">{e.type} (Prioridad {e.priority})</Text>
@@ -158,14 +178,14 @@ export default function CalendarScreen({ navigation }: Props) {
                   }
                 }}
               >
-                <Text className="text-white font-bold mr-2">Ir al Tracker</Text>
+                <Text className="text-white font-bold mr-2">{t('calendarScreen.goToTracker')}</Text>
                 <Text className="text-white">▶</Text>
               </TouchableOpacity>
             )}
           </View>
         ) : (
           <View className="bg-gray-800 p-6 rounded-xl items-center justify-center border border-gray-700 border-dashed">
-            <Text className="text-gray-400">No hay entrenamiento programado para este día.</Text>
+            <Text className="text-gray-400">{t('calendarScreen.noTraining')}</Text>
           </View>
         )}
       </ScrollView>
