@@ -36,6 +36,31 @@ export type CoachBackendResponse =
       message: string;
     };
 
+type AthleteContext = {
+  profile?: {
+    age?: number;
+    weight?: number;
+    maxHR?: number;
+    restingHR?: number;
+    gender?: string;
+    fitnessLevel?: string;
+  };
+  latestCheckin?: {
+    date?: string;
+    fatigue?: number;
+    jointPain?: number;
+  };
+  preferences?: {
+    distanceUnit?: string | null;
+    weightUnit?: string | null;
+    userPreferences?: string | null;
+    sessionTimingPreference?: string | null;
+    preferredRestDay?: string | null;
+    amTimeBudget?: string | null;
+    pmTimeBudget?: string | null;
+  };
+};
+
 export const hasAiBackend = () => Boolean(GENERATE_PLAN_URL && COACH_CHAT_URL);
 
 const responseCache = new Map<string, CacheEntry<unknown>>();
@@ -110,6 +135,10 @@ export const generatePlanViaBackend = async (payload: {
   strengthAvailability: number;
   equipment: string[];
   userPreferences?: string;
+  sessionTimingPreference?: string;
+  preferredRestDay?: string;
+  amTimeBudget?: string;
+  pmTimeBudget?: string;
   language?: string;
 }): Promise<PlanSession[]> => {
   const key = getCacheKey('generatePlan', payload);
@@ -122,6 +151,13 @@ export const generatePlanViaBackend = async (payload: {
 export const coachChatViaBackend = async (payload: {
   message: string;
   language?: string;
+  athleteContext?: AthleteContext;
+  eventsContext?: Array<{
+    type: string;
+    priority: string;
+    date: string;
+    description?: string;
+  }>;
   planContext: Array<{
     date?: string;
     activityType: string;
@@ -131,8 +167,8 @@ export const coachChatViaBackend = async (payload: {
     requiresGPS?: boolean;
   }>;
 }): Promise<CoachBackendResponse> => {
-  const key = getCacheKey('coachChat', payload);
-  return withMemoryCache(key, 20 * 1000, () => postJson<CoachBackendResponse>(COACH_CHAT_URL, payload));
+  // Chat answers depend on rapidly changing user context; avoid short-term stale responses.
+  return postJson<CoachBackendResponse>(COACH_CHAT_URL, payload);
 };
 
 export const proactiveCoachViaBackend = async (payload: {
@@ -140,6 +176,13 @@ export const proactiveCoachViaBackend = async (payload: {
   fatigue: number;
   jointPain: number;
   language?: string;
+  athleteContext?: AthleteContext;
+  eventsContext?: Array<{
+    type: string;
+    priority: string;
+    date: string;
+    description?: string;
+  }>;
   planContext: Array<{
     date?: string;
     activityType: string;

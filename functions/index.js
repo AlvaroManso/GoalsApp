@@ -6,16 +6,100 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 admin.initializeApp();
 
 const rateLimitStore = new Map();
+let candidateModelsCache = {
+  expiresAt: 0,
+  models: null,
+};
 
-const SYSTEM_PROMPT = `Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un macrociclo de entrenamiento para las próximas 52 semanas (1 año completo) estructurado en formato JSON puro.
+const SYSTEM_PROMPT = `Actúa como un entrenador de atletismo de élite, fisiólogo y nutricionista. Genera un macrociclo de entrenamiento de 52 semanas estructurado en JSON puro.
+
 REGLAS FISIOLÓGICAS INQUEBRANTABLES:
-1. Método 80/20: El 80% del volumen de carrera debe ser en Z1/Z2 (Conversacional). Solo el 20% en Z4/Z5 (Series).
-2. Fatiga Cruzada: NUNCA programes una Tirada Larga de carrera el día posterior a un entrenamiento pesado de Fuerza o Hyrox.
-3. Tapering: Si hay un evento Prioridad A programado, reduce el volumen de entrenamiento un 30-50% progresivamente las 2 semanas previas.
-4. Nutrición: Para sesiones de duración > 90 minutos, incluye una nota: 'Ingerir 40-60g CH/hora y 500ml agua con electrolitos/hora'.
-5. Equipamiento: Si el usuario indica que dispone de equipamiento de interior (cinta, rodillo/bici, piscina), siéntete libre de programar sesiones específicas usando ese equipo, especialmente útil para recuperación o si la fatiga de impacto es alta.
-FORMATO JSON REQUERIDO: Devuelve estrictamente un array de objetos. Estructura para cada día del año: 'weekNumber' (number 1-52), 'dayOfWeek' (number 1-7), 'activityType' (string: Run, Treadmill, Cycling, Strength, Rest, Crosstraining, Swimming), 'durationMinutes' (number), 'targetHRZone' (string), 'coachNotes' (string) y 'requiresGPS' (boolean). El campo 'requiresGPS' debe ser true SÓLO si la actividad requiere medir distancia al aire libre (ej: Run, Cycling). Para entrenamientos indoor (Treadmill, Rodillo, Piscina, Fuerza, Descanso), 'requiresGPS' DEBE SER false para no gastar batería.
-Deben ser exactamente 364 objetos (52 semanas * 7 días).`;
+1. Método 80/20: el 80% del volumen de carrera debe ser en Z1/Z2 conversacional. Solo el 20% en Z4/Z5.
+2. Fatiga cruzada: nunca programes una tirada larga de carrera el día posterior a una sesión pesada de fuerza o Hyrox.
+3. Tapering: si hay un evento prioridad A, reduce el volumen progresivamente un 30-50% en las 2 semanas previas.
+4. Nutrición: para sesiones de más de 90 minutos, incluye una nota breve sobre ingesta de carbohidratos e hidratación.
+5. Equipamiento: si el usuario tiene material indoor, úsalo de forma inteligente para recuperación, control de impacto o días de mala climatología.
+
+REGLAS DE ESTRUCTURA:
+1. Devuelve estrictamente un array JSON, sin markdown, sin explicaciones, sin texto adicional.
+2. Cada objeto representa UNA sesión concreta, no un día completo.
+3. Campos obligatorios por objeto: 'weekNumber' (1-52), 'dayOfWeek' (1-7, donde 1 = lunes y 7 = domingo), 'activityType' (string), 'durationMinutes' (number), 'targetHRZone' (string), 'coachNotes' (string) y 'requiresGPS' (boolean).
+4. Debe haber cobertura completa de los 364 días del macrociclo: cada combinación weekNumber + dayOfWeek debe aparecer al menos una vez.
+5. Si un día tiene doble sesión, devuelve varios objetos consecutivos con el mismo 'weekNumber' y el mismo 'dayOfWeek'.
+6. Si un día tiene más de una sesión, NO uses 'Rest' en ese mismo día.
+7. Usa 'Rest' solo en días realmente de descanso completo.
+8. 'coachNotes' debe ser breve, accionable y estar en el idioma solicitado.
+
+REGLAS DE TRACKER:
+1. 'requiresGPS' debe ser true solo si esa sesión necesita medir distancia al aire libre.
+2. Ejemplos normalmente con requiresGPS=true: Run exterior, Cycling exterior, Trail.
+3. Ejemplos normalmente con requiresGPS=false: Strength, Treadmill, Rodillo, Bici Estática, Swimming, Mobility, Rest, Crosstraining indoor, técnica, core.
+4. Si propones doble sesión en un mismo día, intenta que tenga sentido para la app: por ejemplo una sesión GPS y otra sin GPS, o una principal y otra complementaria.
+
+TIPOS DE ACTIVIDAD RECOMENDADOS:
+Run, Trail, Cycling, Treadmill, Strength, Hyrox, Crosstraining, Swimming, Mobility, Recovery, Rest.`;
+
+const gpsActivities = ['run', 'trail', 'cycling', 'bike outdoor', 'outdoor ride'];
+
+const inferRequiresGPS = (activityType) => {
+  const normalized = String(activityType || '').trim().toLowerCase();
+  return gpsActivities.includes(normalized);
+};
+
+const normalizeGeneratedPlan = (plan) => {
+  if (!Array.isArray(plan)) {
+    throw new Error('El plan generado no es un array válido.');
+  }
+
+  const normalized = plan
+    .map((session, index) => ({
+      weekNumber: Number(session?.weekNumber),
+      dayOfWeek: Number(session?.dayOfWeek),
+      activityType: typeof session?.activityType === 'string' && session.activityType.trim()
+        ? session.activityType.trim()
+        : 'Rest',
+      durationMinutes: Math.max(0, Math.round(Number(session?.durationMinutes) || 0)),
+      targetHRZone: typeof session?.targetHRZone === 'string' ? session.targetHRZone.trim() : '',
+      coachNotes: typeof session?.coachNotes === 'string' ? session.coachNotes.trim() : '',
+      requiresGPS: typeof session?.requiresGPS === 'boolean'
+        ? session.requiresGPS
+        : inferRequiresGPS(session?.activityType),
+      __index: index,
+    }))
+    .filter((session) => Number.isFinite(session.weekNumber) && Number.isFinite(session.dayOfWeek))
+    .filter((session) => session.weekNumber >= 1 && session.weekNumber <= 52 && session.dayOfWeek >= 1 && session.dayOfWeek <= 7)
+    .sort((a, b) => {
+      if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
+      if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+      return a.__index - b.__index;
+    })
+    .map(({ __index, ...session }) => session);
+
+  const uniqueDayCount = new Set(normalized.map((session) => `${session.weekNumber}-${session.dayOfWeek}`)).size;
+  if (uniqueDayCount !== 364) {
+    throw new Error(`El plan no cubre exactamente los 364 días requeridos. Días detectados: ${uniqueDayCount}.`);
+  }
+
+  return normalized;
+};
+
+const getNextRelevantEvents = (events, today) => {
+  const upcoming = Array.isArray(events)
+    ? events.filter((event) => typeof event?.date === 'string' && event.date >= today)
+    : [];
+
+  const nextEvent = upcoming[0] || null;
+  const nextMarathon = upcoming.find((event) => {
+    const normalized = `${event?.type || ''} ${event?.description || ''}`.toLowerCase();
+    return normalized.includes('marat') && !normalized.includes('media marat') && !normalized.includes('half marathon') && !normalized.includes('semi-marathon');
+  }) || null;
+  const nextHalfMarathon = upcoming.find((event) => {
+    const normalized = `${event?.type || ''} ${event?.description || ''}`.toLowerCase();
+    return normalized.includes('media marat') || normalized.includes('half marathon') || normalized.includes('semi-marathon');
+  }) || null;
+
+  return { upcoming, nextEvent, nextMarathon, nextHalfMarathon };
+};
 
 const getGenAI = () => {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -27,6 +111,11 @@ const getGenAI = () => {
 };
 
 const getCandidateModels = async () => {
+  const now = Date.now();
+  if (candidateModelsCache.models && candidateModelsCache.expiresAt > now) {
+    return candidateModelsCache.models;
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
   const json = await response.json();
@@ -47,6 +136,11 @@ const getCandidateModels = async () => {
   if (finalCandidates.length === 0) {
     throw new Error('No hay modelos Gemini compatibles con generateContent.');
   }
+
+  candidateModelsCache = {
+    expiresAt: now + 10 * 60 * 1000,
+    models: finalCandidates,
+  };
 
   return finalCandidates;
 };
@@ -199,16 +293,31 @@ exports.generatePlan = onRequest({ cors: true, region: 'europe-west1', secrets: 
       strengthAvailability,
       equipment = [],
       userPreferences,
+      sessionTimingPreference,
+      preferredRestDay,
+      amTimeBudget,
+      pmTimeBudget,
       language = 'es',
     } = req.body || {};
 
     const eventsList = events.map((e) => `${e.type} (Prioridad ${e.priority}) el ${e.date}`).join(', ');
     const dynamicPrompt = `Atleta de ${age} años. Género: ${gender}. FC Reposo: ${restingHR}. Fatiga: ${fatigue}/10. Dolor articular: ${jointPain}/10.
-Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${runAvailability} run, ${strengthAvailability} fuerza.
+Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${runAvailability} sesiones principales de carrera/nado/bici, ${strengthAvailability} de fuerza.
 Equipamiento disponible en el sitio: [${equipment.length > 0 ? equipment.join(', ') : 'Ninguno, solo exterior'}].
 ${userPreferences ? `Preferencias y condiciones del usuario: "${userPreferences}"` : ''}
-Genera el plan de entrenamiento macrociclo de 52 semanas en JSON. 
-IMPORTANTE: El campo 'coachNotes' DEBE estar escrito en el idioma con código '${language}'.`;
+Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.
+IMPORTANTE:
+- El campo 'coachNotes' DEBE estar escrito en el idioma con código '${language}'.
+- La app diferencia entre sesiones con tracker GPS y sesiones sin GPS.
+- Puedes programar doble sesión el mismo día si tiene sentido fisiológico y logístico.
+- Si generas doble sesión el mismo día, devuelve varios objetos consecutivos con el mismo weekNumber y dayOfWeek.
+- Preferencia de franja horaria: ${sessionTimingPreference || 'sin preferencia'}.
+- Día de descanso preferido: ${preferredRestDay || 'sin preferencia'}.
+- Tiempo disponible AM: ${amTimeBudget || 'sin especificar'}.
+- Tiempo disponible PM: ${pmTimeBudget || 'sin especificar'}.
+- Si AM o PM es 0 min, evita programar sesiones en esa franja.
+- Si ambos bloques tienen poco tiempo, evita dobles sesiones salvo que sea muy justificable.
+- No inventes campos extra.`;
 
     const text = await generateWithFallback(() => ({
       systemInstruction: {
@@ -224,7 +333,7 @@ IMPORTANTE: El campo 'coachNotes' DEBE estar escrito en el idioma con código '$
         responseMimeType: 'application/json',
       },
     }));
-    const plan = JSON.parse(text);
+    const plan = normalizeGeneratedPlan(JSON.parse(text));
     res.status(200).json({ plan });
   } catch (error) {
     logger.error('generatePlan failed', error);
@@ -249,14 +358,44 @@ exports.coachChat = onRequest({ cors: true, region: 'europe-west1', secrets: ['G
 
   try {
     validatePayloadSize(req);
-    const { message, planContext = [], language = 'es' } = req.body || {};
+    const { message, planContext = [], eventsContext = [], athleteContext = {}, language = 'es' } = req.body || {};
+    const today = new Date().toISOString().split('T')[0];
+    const { upcoming, nextEvent, nextMarathon, nextHalfMarathon } = getNextRelevantEvents(eventsContext, today);
+    logger.info('coachChat context', {
+      today,
+      message,
+      upcomingCount: upcoming.length,
+      hasAthleteContext: Boolean(athleteContext && Object.keys(athleteContext).length > 0),
+      nextEvent: nextEvent ? { type: nextEvent.type, date: nextEvent.date } : null,
+      nextMarathon: nextMarathon ? { type: nextMarathon.type, date: nextMarathon.date } : null,
+      nextHalfMarathon: nextHalfMarathon ? { type: nextHalfMarathon.type, date: nextHalfMarathon.date } : null,
+    });
     const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta en el idioma '${language}'.
+Hoy es ${today}.
 Aquí tienes los próximos 60 días de su plan de entrenamiento actual:
 ---
 ${JSON.stringify(planContext)}
 ---
+Y aquí tienes sus eventos/configuración objetivo:
+---
+${JSON.stringify(upcoming)}
+---
+Y aquí tienes el contexto completo del atleta:
+---
+${JSON.stringify(athleteContext)}
+---
+Próximo evento futuro: ${nextEvent ? `${nextEvent.type} el ${nextEvent.date}` : 'ninguno'}.
+Próxima maratón futura: ${nextMarathon ? `${nextMarathon.type} el ${nextMarathon.date}` : 'ninguna'}.
+Próxima media maratón futura: ${nextHalfMarathon ? `${nextHalfMarathon.type} el ${nextHalfMarathon.date}` : 'ninguna'}.
 IMPORTANTE:
-Si el usuario SOLO hace una pregunta, respóndele de forma concisa y motivadora referenciando su plan.
+Antes de responder o modificar nada, integra mentalmente plan, eventos y contexto del atleta.
+Si el usuario SOLO hace una pregunta, respóndele de forma concisa, útil y muy personalizada.
+Si la pregunta afecta a una carrera, test, objetivo o fecha importante, usa también el contexto de eventos.
+Si la pregunta afecta a carga, recuperación, intensidad, nutrición, suplementos, hidratación, pérdida de peso, composición corporal o cambios de calendario, usa también el perfil fisiológico, las preferencias y el último check-in si existe.
+Si te preguntan por la carrera más cercana, el próximo evento, la próxima maratón o la próxima media maratón, usa solo fechas que existan en el contexto y prioriza siempre las futuras respecto a hoy.
+Debes tratar "carrera próxima", "evento más cercano", "la más cercana", "próximo objetivo", "próxima maratón" y "próxima media maratón" como consultas sobre el calendario real del usuario.
+Antes de responder una fecha, revisa explícitamente los eventos futuros del contexto y elige el primero que corresponda a la pregunta.
+No inventes fechas ni menciones eventos que no estén en el contexto.
 PERO si el usuario PIDE MODIFICAR el plan, DEBES DEVOLVER ESTRICTAMENTE un JSON con esta estructura:
 {
   "type": "PLAN_UPDATE",
@@ -265,6 +404,12 @@ PERO si el usuario PIDE MODIFICAR el plan, DEBES DEVOLVER ESTRICTAMENTE un JSON 
     { "date": "2024-07-15", "activityType": "Strength", "durationMinutes": 60, "targetHRZone": "Z4", "coachNotes": "Fuerza 5x5", "requiresGPS": false }
   ]
 }
+REGLAS PARA PLAN_UPDATE:
+- Antes de proponer cambios, revisa la semana afectada, los eventos futuros, la fatiga, el dolor articular, el perfil fisiológico y las preferencias del atleta.
+- Solo puedes actualizar fechas que existan en el contexto.
+- Mantén coherencia entre 'activityType' y 'requiresGPS'.
+- Si divides un día en dos sesiones, devuelve ambas en 'updates' con la misma fecha.
+- No añadas markdown ni texto fuera del JSON.
 Si no hay modificaciones, devuelve JSON así:
 {
   "type": "TEXT",
@@ -310,7 +455,7 @@ exports.proactiveCoach = onRequest({ cors: true, region: 'europe-west1', secrets
 
   try {
     validatePayloadSize(req);
-    const { today, fatigue, jointPain, planContext = [], language = 'es' } = req.body || {};
+    const { today, fatigue, jointPain, planContext = [], eventsContext = [], athleteContext = {}, language = 'es' } = req.body || {};
 
     const systemPrompt = `Eres un entrenador de atletismo de élite. Tu atleta acaba de registrar su estado diario hoy (${today}):
 - Fatiga: ${fatigue}/10
@@ -318,6 +463,12 @@ exports.proactiveCoach = onRequest({ cors: true, region: 'europe-west1', secrets
 
 Su plan para los próximos 7 días es:
 ${JSON.stringify(planContext)}
+
+Sus próximos eventos son:
+${JSON.stringify(eventsContext)}
+
+Su contexto completo de atleta es:
+${JSON.stringify(athleteContext)}
 
 Debes decidir si es necesario reajustar el plan debido a la alta fatiga o dolor.
 Si crees que NO es necesario, devuelve texto vacío o "NO_CHANGE".
@@ -329,6 +480,11 @@ Si crees que SÍ es necesario, DEBES DEVOLVER ESTRICTAMENTE un JSON (sin markdow
     { "date": "${today}", "activityType": "Recovery", "durationMinutes": 30, "targetHRZone": "Z1", "coachNotes": "[Notas en el idioma '${language}']", "requiresGPS": false }
   ]
 }
+REGLAS:
+- Antes de reajustar, revisa carga próxima, cercanía de eventos, perfil fisiológico y preferencias del atleta.
+- Mantén la respuesta extremadamente conservadora y segura.
+- No añadas sesiones GPS si el objetivo es descargar fatiga.
+- Si el día ya tiene doble sesión, prioriza eliminar carga o convertir una sesión a recuperación/no GPS.
 No devuelvas NADA MÁS que el JSON si decides actualizar.`;
 
     const text = await generateWithFallback(() => ({

@@ -24,11 +24,11 @@ export default function TrackerScreen({ route, navigation }: Props) {
   const durationMinutes = route.params?.durationMinutes;
   const targetHRZone = route.params?.targetHRZone;
   const coachNotes = route.params?.coachNotes;
+  const planDate = route.params?.planDate;
   
   // Tracking Data
   const [distanceKm, setDistanceKm] = useState(0);
   const [timeSeconds, setTimeSeconds] = useState(0);
-  const [lastLocation, setLastLocation] = useState<Location.LocationObjectCoords | null>(null);
   const [routeCoords, setRouteCoords] = useState<{latitude: number, longitude: number}[]>([]);
   
   // Paces
@@ -48,6 +48,11 @@ export default function TrackerScreen({ route, navigation }: Props) {
   // Refs for Intervals and Subscribers
   const timerInterval = useRef<NodeJS.Timeout | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const lastLocationSample = useRef<{ coords: Location.LocationObjectCoords; timestamp: number } | null>(null);
+
+  const isReliableLocation = (coords: Location.LocationObjectCoords) => {
+    return typeof coords.accuracy !== 'number' || coords.accuracy <= 25;
+  };
 
   // Cargar el perfil del usuario para usarlo en el cálculo de calorías
   useEffect(() => {
@@ -74,6 +79,11 @@ export default function TrackerScreen({ route, navigation }: Props) {
       setCalories(cals);
     }
   }, [timeSeconds, biometrics.currentHR, userProfile, isTracking, weightUnit]);
+
+  useEffect(() => {
+    if (!requiresGPS) return;
+    setAvgPace(calculatePace(distanceKm, timeSeconds));
+  }, [distanceKm, timeSeconds, requiresGPS]);
 
   useEffect(() => {
     (async () => {
@@ -105,11 +115,11 @@ export default function TrackerScreen({ route, navigation }: Props) {
       setIsTracking(true);
       setDistanceKm(0);
       setTimeSeconds(0);
-      setLastLocation(null);
       setRouteCoords([]);
       setAvgPace('0:00');
       setCurrentPace('0:00');
       setCalories(0);
+      lastLocationSample.current = null;
 
       // 1. Iniciar cronómetro
       timerInterval.current = setInterval(() => {
@@ -131,30 +141,44 @@ export default function TrackerScreen({ route, navigation }: Props) {
           },
           (location) => {
             const { coords } = location;
-            
+
+            // Ignora lecturas con baja precisión para reducir saltos falsos de GPS.
+            if (!isReliableLocation(coords)) {
+              return;
+            }
+
+            const previousSample = lastLocationSample.current;
+            lastLocationSample.current = {
+              coords,
+              timestamp: location.timestamp,
+            };
+
             setRouteCoords(prev => [...prev, { latitude: coords.latitude, longitude: coords.longitude }]);
 
-            setLastLocation(prevLocation => {
-              if (prevLocation) {
-                const increment = getDistance(
-                  prevLocation.latitude,
-                  prevLocation.longitude,
-                  coords.latitude,
-                  coords.longitude
-                );
-                
-                setDistanceKm(prev => {
-                  const newDist = prev + increment;
-                  // Ritmo Medio
-                  setAvgPace(calculatePace(newDist, timeSeconds));
-                  return newDist;
-                });
+            if (!previousSample) {
+              return;
+            }
 
-                // Ritmo Actual (Aprox usando solo el último incremento de tiempo que son ~2 seg)
-                setCurrentPace(calculatePace(increment, 2));
-              }
-              return coords;
-            });
+            const increment = getDistance(
+              previousSample.coords.latitude,
+              previousSample.coords.longitude,
+              coords.latitude,
+              coords.longitude
+            );
+
+            // Filtra pequeños saltos de GPS estando casi parado.
+            if (increment < 0.003) {
+              setCurrentPace('--:--');
+              return;
+            }
+
+            setDistanceKm(prev => prev + increment);
+
+            const elapsedSeconds = Math.max(
+              1,
+              Math.round((location.timestamp - previousSample.timestamp) / 1000)
+            );
+            setCurrentPace(calculatePace(increment, elapsedSeconds));
           }
         );
       }
@@ -191,14 +215,20 @@ export default function TrackerScreen({ route, navigation }: Props) {
       locationSubscription.current.remove();
       locationSubscription.current = null;
     }
+    lastLocationSample.current = null;
 
     // Detener Mock de Salud
     healthMock.stopTracking();
 
-      // Guardar actividad en BD
-    if (distanceKm > 0.01 || timeSeconds > 30) {
+    // Guarda la actividad si al menos ha habido 5 minutos de sesión real,
+    // aunque la distancia sea baja o el usuario la termine antes de lo previsto.
+    if (timeSeconds >= 5 * 60) {
+      const now = new Date();
+      const timePart = now.toISOString().split('T')[1];
+      const savedDate = planDate ? `${planDate}T${timePart}` : now.toISOString();
+
       saveActivity({
-        date: new Date().toISOString(),
+        date: savedDate,
         durationMinutes: Math.round(timeSeconds / 60),
         distanceKm: parseFloat(distanceKm.toFixed(2)),
         avgPace: avgPace,

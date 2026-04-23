@@ -3,6 +3,9 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingVi
 import { TabScreenProps } from '../types/navigation';
 import { getApiKey } from '../services/secureStorage';
 import { getAllTrainingPlan, updatePlanSessions } from '../db/trainingPlan';
+import { getDB } from '../db/database';
+import { getEvents } from '../db/events';
+import { getSetting } from '../db/settings';
 import { parseAIResponse } from '../utils/sanitizer';
 import { coachChatViaBackend, hasAiBackend } from '../services/aiBackend';
 import i18n from '../i18n';
@@ -14,6 +17,25 @@ interface Message {
   text: string;
   isUser: boolean;
 }
+
+const isFutureOrToday = (date: string) => date >= new Date().toISOString().split('T')[0];
+
+const getNextRelevantEvents = (events: Array<{ type: string; priority: string; date: string; description?: string }>) => {
+  const upcoming = events.filter((event) => event.date && isFutureOrToday(event.date));
+  const nextEvent = upcoming[0] || null;
+  const nextMarathon =
+    upcoming.find((event) => {
+      const normalized = `${event.type} ${event.description || ''}`.toLowerCase();
+      return normalized.includes('marat') && !normalized.includes('media marat') && !normalized.includes('half marathon') && !normalized.includes('semi-marathon');
+    }) || null;
+  const nextHalfMarathon =
+    upcoming.find((event) => {
+      const normalized = `${event.type} ${event.description || ''}`.toLowerCase();
+      return normalized.includes('media marat') || normalized.includes('half marathon') || normalized.includes('semi-marathon');
+    }) || null;
+
+  return { upcoming, nextEvent, nextMarathon, nextHalfMarathon };
+};
 
 export default function ChatScreen({ navigation }: Props) {
   const [messages, setMessages] = useState<Message[]>([
@@ -39,10 +61,14 @@ export default function ChatScreen({ navigation }: Props) {
     setIsTyping(true);
 
     try {
+      const db = getDB();
       const plan = getAllTrainingPlan();
       // Extract the next 60 days to avoid huge payload, but sufficient for short-term edits
       const todayDate = new Date().toISOString().split('T')[0];
       const futurePlan = plan.filter(p => p.date && p.date >= todayDate).slice(0, 60);
+      const events = getEvents();
+      const profile = db.getFirstSync<any>('SELECT * FROM UserProfile ORDER BY id DESC LIMIT 1');
+      const latestCheckin = db.getFirstSync<any>('SELECT * FROM DailyCheckin ORDER BY date DESC, id DESC LIMIT 1');
 
       const planContextItems = futurePlan.map(p => ({
         date: p.date,
@@ -52,11 +78,52 @@ export default function ChatScreen({ navigation }: Props) {
         coachNotes: p.coachNotes,
         requiresGPS: p.requiresGPS
       }));
+      const eventsContext = events.map((event) => ({
+        type: event.type,
+        priority: event.priority,
+        date: event.date,
+        description: event.description,
+      }));
+      const athleteContext = {
+        profile: profile ? {
+          age: profile.age,
+          weight: profile.weight,
+          maxHR: profile.maxHR,
+          restingHR: profile.restingHR,
+          gender: profile.gender,
+          fitnessLevel: profile.fitnessLevel,
+        } : undefined,
+        latestCheckin: latestCheckin ? {
+          date: latestCheckin.date,
+          fatigue: latestCheckin.fatigue,
+          jointPain: latestCheckin.jointPain,
+        } : undefined,
+        preferences: {
+          distanceUnit: getSetting('distanceUnit'),
+          weightUnit: getSetting('weightUnit'),
+          userPreferences: getSetting('user-preferences'),
+          sessionTimingPreference: getSetting('session-timing-preference'),
+          preferredRestDay: getSetting('preferred-rest-day'),
+          amTimeBudget: getSetting('am-time-budget'),
+          pmTimeBudget: getSetting('pm-time-budget'),
+        },
+      };
+      const { upcoming, nextEvent, nextMarathon, nextHalfMarathon } = getNextRelevantEvents(eventsContext);
+      console.log('[CoachChat] eventsContext', {
+        todayDate,
+        message: userText,
+        upcoming,
+        nextEvent,
+        nextMarathon,
+        nextHalfMarathon,
+      });
 
       if (hasAiBackend()) {
         const backendResponse = await coachChatViaBackend({
           message: userText,
           language: i18n.language,
+          athleteContext,
+          eventsContext: upcoming,
           planContext: planContextItems,
         });
 
@@ -86,6 +153,8 @@ export default function ChatScreen({ navigation }: Props) {
       if (!apiKey) throw new Error('API Key no configurada');
 
       const planContext = JSON.stringify(planContextItems);
+      const eventsContextJson = JSON.stringify(upcoming);
+      const athleteContextJson = JSON.stringify(athleteContext);
 
       const listModels = async (): Promise<string[]> => {
         const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
@@ -113,12 +182,29 @@ export default function ChatScreen({ navigation }: Props) {
       const generateWithModel = async (modelId: string, promptText: string): Promise<string> => {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`;
         const systemInstructionText = `Eres un entrenador de atletismo de élite respondiendo a tu atleta en el idioma '${i18n.language}'.
+Hoy es ${todayDate}.
 Aquí tienes los próximos 60 días de su plan de entrenamiento actual:
 ---
 ${planContext}
 ---
+Aquí tienes también sus eventos objetivo configurados:
+---
+${eventsContextJson}
+---
+Y aquí tienes su contexto completo de atleta:
+---
+${athleteContextJson}
+---
+Próximo evento futuro: ${nextEvent ? `${nextEvent.type} el ${nextEvent.date}` : 'ninguno'}.
+Próxima maratón futura: ${nextMarathon ? `${nextMarathon.type} el ${nextMarathon.date}` : 'ninguna'}.
+Próxima media maratón futura: ${nextHalfMarathon ? `${nextHalfMarathon.type} el ${nextHalfMarathon.date}` : 'ninguna'}.
 IMPORTANTE:
-Si el usuario SOLO hace una pregunta, respóndele de forma concisa y motivadora referenciando su plan.
+Antes de responder o modificar nada, integra mentalmente plan, eventos y contexto del atleta.
+Si el usuario SOLO hace una pregunta, respóndele de forma concisa, útil y muy personalizada.
+Si la pregunta afecta a una carrera, objetivo o fecha relevante, usa también el contexto de eventos.
+Si la pregunta afecta a carga, recuperación, intensidad, nutrición o cambios de calendario, usa también perfil, preferencias y último check-in.
+Si te preguntan por el próximo evento o la próxima media maratón, usa solo fechas que existan en el contexto y prioriza siempre las futuras respecto a hoy.
+No inventes fechas ni menciones eventos que no estén en el contexto.
 PERO si el usuario PIDE MODIFICAR el plan (ej: "haz que los entrenos de fuerza sean de 5 repeticiones", "reduce la duración del running en agosto"), DEBES DEVOLVER ESTRICTAMENTE un JSON (sin texto adicional ni markdown) con la siguiente estructura:
 {
   "type": "PLAN_UPDATE",
@@ -127,8 +213,14 @@ PERO si el usuario PIDE MODIFICAR el plan (ej: "haz que los entrenos de fuerza s
     { "date": "2024-07-15", "activityType": "Strength", "durationMinutes": 60, "targetHRZone": "Z4", "coachNotes": "Fuerza 5x5 al fallo", "requiresGPS": false }
   ]
 }
-Recuerda añadir siempre "requiresGPS": false para entrenamientos que no requieran medir distancia con GPS al aire libre (ej. Fuerza, Descanso, Piscina, Rodillo).
-Devuelve el JSON solo con las fechas (date) exactas que quieres actualizar que coincidan con las fechas del contexto. Si no hay modificaciones, devuelve texto plano normal.`;
+REGLAS PARA PLAN_UPDATE:
+- Antes de proponer cambios, revisa la semana afectada, los eventos futuros, la fatiga, el dolor articular, el perfil fisiológico y las preferencias del atleta.
+- Usa solo fechas exactas existentes en el contexto.
+- Mantén coherencia entre 'activityType' y 'requiresGPS'.
+- Si un día debe quedar con doble sesión, puedes devolver varias entradas con la misma fecha.
+- Para sesiones indoor o complementarias usa requiresGPS=false.
+- No añadas markdown ni texto fuera del JSON.
+Si no hay modificaciones, devuelve texto plano normal.`;
 
         const body = {
           systemInstruction: {

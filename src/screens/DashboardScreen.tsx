@@ -13,13 +13,14 @@ import { saveActivity, deleteActivityByDateAndType, getActivities, Activity } fr
 import { getSetting, setSetting } from '../db/settings';
 import { calculateStreak, getLastWeekSummary } from '../utils/gamification';
 import { formatDistance } from '../utils/units';
+import { hasAiBackend } from '../services/aiBackend';
 
 type Props = TabScreenProps<'Dashboard'>;
 
 export default function DashboardScreen({ navigation }: Props) {
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [plan, setPlan] = useState<PlanSession[]>([]);
-  const [completedDates, setCompletedDates] = useState<string[]>([]);
+  const [completedSessionKeys, setCompletedSessionKeys] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0); // Progress for the bar
@@ -43,6 +44,10 @@ export default function DashboardScreen({ navigation }: Props) {
   const [userPreferences, setUserPreferences] = useState('');
   const [runDays, setRunDays] = useState(4);
   const [strengthDays, setStrengthDays] = useState(2);
+  const [sessionTimingPreference, setSessionTimingPreference] = useState<'am' | 'pm' | 'split_by_intensity'>('split_by_intensity');
+  const [amTimeBudget, setAmTimeBudget] = useState<'0' | '30-45' | '45-60' | '60-90' | '90-120' | '120+'>('45-60');
+  const [pmTimeBudget, setPmTimeBudget] = useState<'0' | '30-45' | '45-60' | '60-90' | '90-120' | '120+'>('0');
+  const [preferredRestDay, setPreferredRestDay] = useState<'none' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'>('none');
   const [refreshing, setRefreshing] = useState(false);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
@@ -64,6 +69,34 @@ export default function DashboardScreen({ navigation }: Props) {
 
   const EVENT_OPTIONS = ['10k', 'Media Maratón', 'Maratón', 'Triatlón', 'Ciclismo', 'Trail/Montaña', 'Fuerza', 'Hyrox', 'Otro'];
   const EQUIPMENT_OPTIONS = ['Cinta de Correr', 'Rodillo / Bici Estática', 'Piscina Infinita / Estática', 'Pesas / Gimnasio', 'Pista de Atletismo'];
+  const getSessionCompletionKey = (date: string, activityType: string) =>
+    `${date}::${activityType.trim().toLowerCase()}`;
+  const timingOptions: Array<{ value: 'am' | 'pm' | 'split_by_intensity'; label: string }> = [
+    { value: 'am', label: t('modals.timingAm') },
+    { value: 'pm', label: t('modals.timingPm') },
+    { value: 'split_by_intensity', label: t('modals.timingSplit') },
+  ];
+  const timeBudgetOptions: Array<{ value: '0' | '30-45' | '45-60' | '60-90' | '90-120' | '120+'; label: string }> = [
+    { value: '0', label: t('modals.time0') },
+    { value: '30-45', label: t('modals.time3045') },
+    { value: '45-60', label: t('modals.time4560') },
+    { value: '60-90', label: t('modals.time6090') },
+    { value: '90-120', label: t('modals.time90120') },
+    { value: '120+', label: t('modals.time120plus') },
+  ];
+  const restDayOptions: Array<{
+    value: 'none' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+    label: string;
+  }> = [
+    { value: 'none', label: t('modals.noPreference') },
+    { value: 'monday', label: t('modals.monday') },
+    { value: 'tuesday', label: t('modals.tuesday') },
+    { value: 'wednesday', label: t('modals.wednesday') },
+    { value: 'thursday', label: t('modals.thursday') },
+    { value: 'friday', label: t('modals.friday') },
+    { value: 'saturday', label: t('modals.saturday') },
+    { value: 'sunday', label: t('modals.sunday') },
+  ];
 
   const loadEvents = () => {
     try {
@@ -108,28 +141,30 @@ export default function DashboardScreen({ navigation }: Props) {
         currentMonday.setDate(today.getDate() + diffToMonday);
         currentMonday.setHours(0, 0, 0, 0);
 
-        // Obtener 7 días desde el lunes de la semana actual
+        const nextMonday = new Date(currentMonday);
+        nextMonday.setDate(currentMonday.getDate() + 7);
+
+        // Obtener las sesiones de los 7 días de la semana actual
         const currentWeekPlan = savedPlan.filter(p => {
           const pDate = new Date(p.date!);
-          return pDate.getTime() >= currentMonday.getTime();
-        }).slice(0, 7);
+          return pDate.getTime() >= currentMonday.getTime() && pDate.getTime() < nextMonday.getTime();
+        });
         
         setPlan(currentWeekPlan);
       }
 
-      // Cargar historial de actividades para ver cuáles están completadas
+      // Cargar historial de actividades para ver qué sesiones concretas están completadas
       const history = getActivities();
-      const completed = history.map(act => {
-        // Extract YYYY-MM-DD from ISO string
-        return act.date.split('T')[0];
-      });
-      setCompletedDates(completed);
+      const completed = history
+        .filter(act => Boolean(act.type))
+        .map(act => getSessionCompletionKey(act.date.split('T')[0], act.type || 'Running'));
+      setCompletedSessionKeys(completed);
 
       const unit = getSetting('distanceUnit') as 'km' | 'mi';
       if (unit) setDistanceUnit(unit);
 
       // Calcular Gamificación (Streak y Resumen Semanal)
-      const streak = calculateStreak(history);
+      const streak = calculateStreak(history, savedPlan);
       setCurrentStreak(streak);
       
       const summary = getLastWeekSummary(history);
@@ -151,6 +186,21 @@ export default function DashboardScreen({ navigation }: Props) {
     if (savedPrefs !== null) {
       setUserPreferences(savedPrefs);
     }
+    const savedTiming = getSetting('session-timing-preference') as 'am' | 'pm' | 'split_by_intensity' | null;
+    if (savedTiming) setSessionTimingPreference(savedTiming);
+    const savedRestDay = getSetting('preferred-rest-day') as 'none' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday' | null;
+    if (savedRestDay) setPreferredRestDay(savedRestDay);
+    const legacyDailyBudget = getSetting('daily-time-budget') as '30-45' | '45-60' | '60-90' | '90-120' | '120+' | null;
+    const savedAmBudget = getSetting('am-time-budget') as '0' | '30-45' | '45-60' | '60-90' | '90-120' | '120+' | null;
+    const savedPmBudget = getSetting('pm-time-budget') as '0' | '30-45' | '45-60' | '60-90' | '90-120' | '120+' | null;
+    if (savedAmBudget) {
+      setAmTimeBudget(savedAmBudget);
+    } else if (legacyDailyBudget) {
+      setAmTimeBudget(legacyDailyBudget);
+    }
+    if (savedPmBudget) {
+      setPmTimeBudget(savedPmBudget);
+    }
     loadEvents();
   }, []);
 
@@ -159,6 +209,58 @@ export default function DashboardScreen({ navigation }: Props) {
     try {
       setSetting('user-preferences', text);
     } catch {}
+  };
+
+  const savePreferenceSetting = (key: string, value: string, setter: (value: any) => void) => {
+    setter(value);
+    try {
+      setSetting(key, value);
+    } catch {}
+  };
+
+  const saveBudgetWithAutoRules = (
+    key: 'am-time-budget' | 'pm-time-budget',
+    value: '0' | '30-45' | '45-60' | '60-90' | '90-120' | '120+',
+    setter: (value: '0' | '30-45' | '45-60' | '60-90' | '90-120' | '120+') => void
+  ) => {
+    savePreferenceSetting(key, value, setter);
+
+    // Keep the UI coherent with the selected time preference.
+    if (key === 'am-time-budget' && sessionTimingPreference === 'pm' && value !== '0') {
+      savePreferenceSetting('session-timing-preference', 'split_by_intensity', setSessionTimingPreference);
+    }
+    if (key === 'pm-time-budget' && sessionTimingPreference === 'am' && value !== '0') {
+      savePreferenceSetting('session-timing-preference', 'split_by_intensity', setSessionTimingPreference);
+    }
+  };
+
+  const handleSessionTimingPreferenceChange = (value: 'am' | 'pm' | 'split_by_intensity') => {
+    savePreferenceSetting('session-timing-preference', value, setSessionTimingPreference);
+
+    if (value === 'am') {
+      if (amTimeBudget === '0') {
+        savePreferenceSetting('am-time-budget', '45-60', setAmTimeBudget);
+      }
+      if (pmTimeBudget !== '0') {
+        savePreferenceSetting('pm-time-budget', '0', setPmTimeBudget);
+      }
+      return;
+    }
+
+    if (value === 'pm') {
+      if (pmTimeBudget === '0') {
+        savePreferenceSetting('pm-time-budget', '45-60', setPmTimeBudget);
+      }
+      if (amTimeBudget !== '0') {
+        savePreferenceSetting('am-time-budget', '0', setAmTimeBudget);
+      }
+      return;
+    }
+
+    // If the user wants both slots but both are zero, seed a sensible default.
+    if (amTimeBudget === '0' && pmTimeBudget === '0') {
+      savePreferenceSetting('am-time-budget', '45-60', setAmTimeBudget);
+    }
   };
 
   // Refresh on focus
@@ -288,7 +390,7 @@ export default function DashboardScreen({ navigation }: Props) {
     }
 
     const key = await getApiKey();
-    if (!key) {
+    if (!hasAiBackend() && !key) {
       setIsApiKeyModalVisible(true);
       return;
     }
@@ -321,6 +423,10 @@ export default function DashboardScreen({ navigation }: Props) {
         strengthAvailability: strengthDays,
         equipment: equipment,
         userPreferences: userPreferences,
+        sessionTimingPreference,
+        preferredRestDay,
+        amTimeBudget,
+        pmTimeBudget,
         onProgress: (prog) => {
           setGenerationProgress(prog);
         }
@@ -588,8 +694,18 @@ export default function DashboardScreen({ navigation }: Props) {
               <Text className="text-white font-bold text-xl">{weeklySummary.workouts}</Text>
             </View>
             <View className="items-center flex-1 border-l border-r border-gray-700 px-2">
-              <Text className="text-gray-400 text-xs mb-1 uppercase">{t('gamification.totalDistance')}</Text>
-              <Text className="text-white font-bold text-xl">{formatDistance(weeklySummary.distanceKm, distanceUnit)} <Text className="text-xs font-normal text-gray-500">{distanceUnit}</Text></Text>
+              <Text className="text-gray-400 text-xs mb-1 uppercase">
+                {weeklySummary.hasDistance ? t('gamification.totalDistance') : t('gamification.totalTime')}
+              </Text>
+              {weeklySummary.hasDistance ? (
+                <Text className="text-white font-bold text-xl">
+                  {formatDistance(weeklySummary.distanceKm, distanceUnit)} <Text className="text-xs font-normal text-gray-500">{distanceUnit}</Text>
+                </Text>
+              ) : (
+                <Text className="text-white font-bold text-xl">
+                  {weeklySummary.durationMinutes} <Text className="text-xs font-normal text-gray-500">{t('gamification.mins')}</Text>
+                </Text>
+              )}
             </View>
             <View className="items-center flex-1">
               <Text className="text-gray-400 text-xs mb-1 uppercase">{t('gamification.caloriesBurned')}</Text>
@@ -615,11 +731,11 @@ export default function DashboardScreen({ navigation }: Props) {
             const formattedPlanDate = `${dayName}-${dayNum}-${monthNum}`;
 
             const isRest = item.activityType.toLowerCase() === 'rest';
-            const isCompleted = completedDates.includes(item.date!);
+            const isCompleted = completedSessionKeys.includes(getSessionCompletionKey(item.date!, item.activityType));
 
             return (
               <TouchableOpacity 
-                key={item.date!} 
+                key={`${item.date}-${item.activityType}-${index}`} 
                 className={`bg-white dark:bg-gray-800 p-4 rounded-xl mb-4 border shadow-sm ${
                   isCompleted ? 'border-green-200 dark:border-green-900/50 opacity-60' : 
                   'border-indigo-200 dark:border-indigo-900'
@@ -661,6 +777,11 @@ export default function DashboardScreen({ navigation }: Props) {
                   </View>
                   
                   <View className="flex-row items-center">
+                    {!isRest && (
+                      <Text className="text-xs text-gray-400 mr-3">
+                        {item.requiresGPS ? 'GPS' : 'Sin GPS'}
+                      </Text>
+                    )}
                     {item.durationMinutes > 0 && (
                       <Text className={`font-bold ${isCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-indigo-600 dark:text-indigo-400'}`}>
                         {item.durationMinutes} min
@@ -874,11 +995,15 @@ export default function DashboardScreen({ navigation }: Props) {
 
       {/* Modal para Seleccionar Equipamiento y Preferencias */}
       <Modal visible={isPreGenModalVisible} animationType="slide" transparent>
-        <TouchableWithoutFeedback onPress={() => setIsPreGenModalVisible(false)}>
-          <View className="flex-1 justify-end bg-black/80">
-            <TouchableWithoutFeedback>
-              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700 max-h-[80%]">
-                <ScrollView showsVerticalScrollIndicator={false}>
+        <View className="flex-1 justify-end bg-black/80">
+          <TouchableOpacity activeOpacity={1} className="flex-1" onPress={() => setIsPreGenModalVisible(false)} />
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="bg-gray-800 p-6 rounded-t-3xl border-t border-gray-700 max-h-[80%]">
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled
+                  contentContainerStyle={{ paddingBottom: 24 }}
+                >
                   <Text className="text-2xl text-white font-bold mb-2">{t('modals.aiPrefs')}</Text>
                   <Text className="text-gray-400 mb-6">
                     {t('modals.aiPrefsDesc')}
@@ -897,7 +1022,7 @@ export default function DashboardScreen({ navigation }: Props) {
 
                   <Text className="text-white font-bold text-lg mb-2">{t('modals.runDays')}</Text>
                   <View className="flex-row justify-between mb-4 bg-gray-700 rounded-xl p-1">
-                    {[1, 2, 3, 4, 5, 6, 7].map(num => (
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map(num => (
                       <TouchableOpacity
                         key={`run-${num}`}
                         onPress={() => setRunDays(num)}
@@ -910,13 +1035,85 @@ export default function DashboardScreen({ navigation }: Props) {
 
                   <Text className="text-white font-bold text-lg mb-2">{t('modals.strDays')}</Text>
                   <View className="flex-row justify-between mb-6 bg-gray-700 rounded-xl p-1">
-                    {[0, 1, 2, 3, 4, 5].map(num => (
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map(num => (
                       <TouchableOpacity
                         key={`str-${num}`}
                         onPress={() => setStrengthDays(num)}
                         className={`flex-1 py-3 items-center rounded-lg ${strengthDays === num ? 'bg-indigo-600' : ''}`}
                       >
                         <Text className={`font-bold ${strengthDays === num ? 'text-white' : 'text-gray-400'}`}>{num}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.sessionTiming')}</Text>
+                  <Text className="text-gray-400 text-sm mb-3">{t('modals.sessionTimingDesc')}</Text>
+                  <View className="flex-row flex-wrap mb-6">
+                    {timingOptions.map(option => (
+                      <TouchableOpacity
+                        key={option.value}
+                        onPress={() => handleSessionTimingPreferenceChange(option.value)}
+                        className={`px-4 py-3 rounded-xl mr-2 mb-2 border ${
+                          sessionTimingPreference === option.value ? 'bg-indigo-600/20 border-indigo-500' : 'bg-gray-700 border-gray-600'
+                        }`}
+                      >
+                        <Text className={`font-bold ${sessionTimingPreference === option.value ? 'text-indigo-400' : 'text-gray-300'}`}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.amTimeBudget')}</Text>
+                  <Text className="text-gray-400 text-sm mb-3">{t('modals.amTimeBudgetDesc')}</Text>
+                  <View className="flex-row flex-wrap mb-6">
+                    {timeBudgetOptions.map(option => (
+                      <TouchableOpacity
+                        key={`am-${option.value}`}
+                        onPress={() => saveBudgetWithAutoRules('am-time-budget', option.value, setAmTimeBudget)}
+                        className={`px-4 py-3 rounded-xl mr-2 mb-2 border ${
+                          amTimeBudget === option.value ? 'bg-indigo-600/20 border-indigo-500' : 'bg-gray-700 border-gray-600'
+                        }`}
+                      >
+                        <Text className={`font-bold ${amTimeBudget === option.value ? 'text-indigo-400' : 'text-gray-300'}`}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.pmTimeBudget')}</Text>
+                  <Text className="text-gray-400 text-sm mb-3">{t('modals.pmTimeBudgetDesc')}</Text>
+                  <View className="flex-row flex-wrap mb-6">
+                    {timeBudgetOptions.map(option => (
+                      <TouchableOpacity
+                        key={`pm-${option.value}`}
+                        onPress={() => saveBudgetWithAutoRules('pm-time-budget', option.value, setPmTimeBudget)}
+                        className={`px-4 py-3 rounded-xl mr-2 mb-2 border ${
+                          pmTimeBudget === option.value ? 'bg-indigo-600/20 border-indigo-500' : 'bg-gray-700 border-gray-600'
+                        }`}
+                      >
+                        <Text className={`font-bold ${pmTimeBudget === option.value ? 'text-indigo-400' : 'text-gray-300'}`}>
+                          {option.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-white font-bold text-lg mb-2">{t('modals.restDay')}</Text>
+                  <Text className="text-gray-400 text-sm mb-3">{t('modals.restDayDesc')}</Text>
+                  <View className="flex-row flex-wrap mb-6">
+                    {restDayOptions.map(option => (
+                      <TouchableOpacity
+                        key={option.value}
+                        onPress={() => savePreferenceSetting('preferred-rest-day', option.value, setPreferredRestDay)}
+                        className={`px-4 py-3 rounded-xl mr-2 mb-2 border ${
+                          preferredRestDay === option.value ? 'bg-indigo-600/20 border-indigo-500' : 'bg-gray-700 border-gray-600'
+                        }`}
+                      >
+                        <Text className={`font-bold ${preferredRestDay === option.value ? 'text-indigo-400' : 'text-gray-300'}`}>
+                          {option.label}
+                        </Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -949,10 +1146,8 @@ export default function DashboardScreen({ navigation }: Props) {
                     <Text className="text-white font-bold">{t('modals.saveClose')}</Text>
                   </TouchableOpacity>
                 </ScrollView>
-              </KeyboardAvoidingView>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </ScrollView>
   );

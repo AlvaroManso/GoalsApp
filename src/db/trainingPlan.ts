@@ -17,12 +17,27 @@ export const saveTrainingPlan = (plan: PlanSession[]) => {
     );
 
     const today = new Date();
+    const orderedPlan = [...plan].sort((a, b) => {
+      if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
+      if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+      return 0;
+    });
 
-    for (let i = 0; i < plan.length; i++) {
-      const session = plan[i];
-      // Calcular la fecha exacta (DÃ­a 1 = MaÃ±ana)
+    let currentDayOffset = -1;
+    let previousDayKey = '';
+
+    for (let i = 0; i < orderedPlan.length; i++) {
+      const session = orderedPlan[i];
+      const dayKey = `${session.weekNumber}-${session.dayOfWeek}`;
+      if (dayKey !== previousDayKey) {
+        currentDayOffset += 1;
+        previousDayKey = dayKey;
+      }
+
+      // Avanza un día por cada combinación única weekNumber + dayOfWeek.
+      // Si hay doble sesión en el mismo día, comparte la misma fecha.
       const sessionDate = new Date(today);
-      sessionDate.setDate(today.getDate() + 1 + i);
+      sessionDate.setDate(today.getDate() + 1 + currentDayOffset);
       const dateString = sessionDate.toISOString().split('T')[0];
 
       stmt.executeSync([

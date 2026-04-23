@@ -1,134 +1,123 @@
-# Estado Actual del Proyecto (Handoff)
+# Estado Actual del Proyecto
 
-Este documento contiene el contexto exacto del proyecto al finalizar la última sesión para que puedas retomar el trabajo de inmediato, o por si el contexto del chat se borra.
+Documento de referencia para retomar el proyecto y cerrar el sprint con una foto fiel del estado real del código.
 
-## 1. ¿Qué se ha resuelto y cuál es el estado actual?
-- **App 100% Funcional**: La navegación, las pestañas (tabs) y los botones vuelven a funcionar perfectamente.
-- **Bug crítico eliminado**: Se arregló el error `Couldn't find a navigation context` parcheando `react-native-css-interop` (el parche está guardado en `patches/` y se aplica automáticamente al instalar dependencias gracias al script postinstall).
-- **Consolidación Visual**: Se eliminó el soporte de modo claro/dinámico. **Toda la app ahora está forzada a Tema Oscuro** para garantizar estabilidad visual y evitar bugs de estilos dinámicos. La pantalla de Calendario ya refleja este tema.
-- **Seguridad IA**: La API Key de Gemini ya no está expuesta ni hardcodeada en el código. Se lee desde el archivo `.env` local (no trackeado por Git para evitar baneos de Google) o mediante `expo-secure-store`.
-- **Typing Limpio**: La compilación TypeScript (`npx tsc`) se ejecuta sin errores. Se sanearon los tipos de navegación, base de datos e internacionalización (i18n).
+## Estado real
+- La app móvil funciona sobre Expo + TypeScript + SQLite con tema oscuro fijo.
+- La navegación está estabilizada con el parche persistente de `react-native-css-interop`.
+- La IA ya puede ejecutarse por backend en Firebase Functions para `generatePlan`, `coachChat` y `proactiveCoach`.
+- El cliente todavía conserva modo BYOK guardando la key en `expo-secure-store`, pero ya no usa una variable pública `EXPO_PUBLIC_GEMINI_API_KEY`.
+- El tracker GPS funciona en primer plano con `expo-location`; no hay tracking robusto en segundo plano todavía.
+- El historial ya se ordena de más reciente a más antiguo.
+- La app soporta i18n base en cinco idiomas y preferencias de distancia/peso (`km/mi`, `kg/lbs`), aunque aún quedan textos hardcodeados en algunas pantallas.
+- La generación del plan ya admite preferencias estructuradas de horario (`AM/PM/ambos según intensidad`), minutos disponibles por bloque `AM/PM`, día de descanso preferido y disponibilidad semanal más flexible.
+- Calendario ya permite exportar e importar `.ics`.
 
-## 2. Cómo empezar a trabajar en la nueva tarea
-1. Lee tu **Sprint README** (`docs/sprint-01/README.md`) para recordar el objetivo global y lo que se ha avanzado.
-2. Todo tu entorno local está limpio y ya está subido (Pushed) a la rama `main` de GitHub.
-3. Para evitar que la caché de Metro te juegue malas pasadas (ya que parcheamos dependencias base), te recomiendo arrancar el proyecto limpiando caché:
-   ```bash
-   npx expo start -c
-   ```
+## Auditoría del cierre de sprint
 
-## 3. Reglas Críticas para el Desarrollo y Git (¡IMPORTANTE!)
-Para no perder el control de los cambios como nos pasó en la sesión anterior (donde llegamos a tener +25 archivos modificados sin control), aplica siempre esto:
+### Corregido en esta auditoría
+- Se elimina el fallback inseguro de Gemini desde variable pública del cliente; la key local solo se resuelve desde `SecureStore`.
+- Se corrige el flujo de Dashboard para no exigir API key si el backend IA ya está configurado.
+- Se elimina la dependencia sospechosa `temp_app: file:..` de `functions/package.json`.
+- Se añade caché en memoria para la lista de modelos Gemini en Functions y así reducir latencia y llamadas redundantes.
 
-- **Haz Commits Frecuentes, Atómicos y Pequeños**:
-  - No acumules muchos cambios locales sin trackear. Cada vez que consigas que una función, pantalla o pequeño arreglo funcione y compile, **haz un commit de inmediato**.
-  - Ejemplo: Si terminas de maquetar la pantalla X -> `git add .` -> `git commit -m "feat: añadir diseño base de la pantalla X"`.
-- **Prueba siempre antes de avanzar**:
-  - Si vas a hacer un refactor grande o a instalar un paquete nuevo, asegúrate de que tu árbol de trabajo esté limpio (`git status` vacío). Así, si rompes algo, podrás volver atrás instantáneamente con `git restore .`.
-- **Ojo con los cambios en dependencias**:
-  - React Native y Expo pueden ser muy sensibles a cambios en el `package.json`. Si instalas algo nuevo y la navegación o la UI se rompen, haz un `git checkout` de tu `package.json`, borra `node_modules` y vuelve a ejecutar `npm install`.
-- **Documenta tus avances**:
-  - Mantén actualizado este documento (`docs/CURRENT_STATE.md`) cuando cierres una sesión importante para no perder contexto.
-  - Mantén también actualizado `docs/versioning/VERSIONING.md` para reflejar cambios funcionales, fixes y decisiones de producto relevantes.
+### Riesgos todavía abiertos
+- Las Functions siguen siendo públicas: falta autenticación real de usuario y/o App Check.
+- El rate limiting del backend es en memoria y por IP; sirve como freno básico, no como protección seria ante abuso.
+- `temp_app/` sigue existiendo en el repo como scaffold residual; ya no cuelga de Functions, pero conviene decidir si se archiva o elimina.
+- `HistoryScreen` renderiza mapas dentro de una lista simple; con mucho historial puede penalizar memoria y scroll.
+- El tracker usa permisos de ubicación en primer plano; para uso tipo Strava con móvil bloqueado hace falta background location + dev build/EAS.
+- Parte del Dashboard y algunos mensajes auxiliares siguen con textos fijos en español.
 
-## 4. Trabajo Pendiente Recomendado
-- Sincronización real con Apple HealthKit / Google Fit aún está pendiente (actualmente se está usando un Mock).
-- Exportación del plan de entrenamiento a formato `.ics` para el calendario del móvil.
+## Arquitectura IA
 
-## 5. Ideas y Siguientes Pasos (Product Backlog)
+### Flujo recomendado actual
+1. La app llama a Firebase Functions mediante URLs `EXPO_PUBLIC_AI_*`.
+2. Functions usa `GEMINI_API_KEY` como secreto de servidor.
+3. La respuesta vuelve ya filtrada al cliente.
 
-Basado en el objetivo principal de GoalsApp, aquí tienes el backlog de funcionalidades clave que marcarán la diferencia en los próximos sprints:
+### Modo alternativo solo para desarrollo
+- Si no hay backend configurado, la app puede seguir funcionando con una key guardada manualmente en `SecureStore`.
+- Este modo no debe considerarse flujo principal de producto.
 
-### Alta Prioridad (Retención y Fricción Cero)
-- **Sincronización Bidireccional (Apple Health / Google Fit)**: Leer automáticamente entrenamientos, pasos y frecuencia cardíaca para marcar las sesiones de GoalsApp como completadas sin intervención manual. (Actualmente pendiente de implementar el enlace real, usamos mock).
-- **Notificaciones Locales (Push)**: Programar recordatorios nativos en el dispositivo (sin servidor) para asegurar la constancia: *"⏰ No olvides tu Check-In diario"* o *"🏃‍♂️ Hoy toca: Fuerza (45 min)"*.
+## Estado funcional por áreas
 
-### Media Prioridad (Diferenciación y Gamificación)
-- **El Coach Proactivo (IA Automática)**: Hacer que Gemini analice silenciosamente los Check-ins diarios. Si detecta alta fatiga o días saltados, la app debe lanzar un popup sugiriendo proactivamente un reajuste del plan (ej: *"He visto que estás muy cansado. ¿Cambio las series de hoy por recuperación activa?"*).
-- **Micro-Objetivos y Gamificación (Rachas/Streaks)**: Implementar un sistema visual de "Rachas" (ej. "🔥 5 días seguidos cumpliendo tu plan") para fomentar la retención psicológica del usuario.
+### IA y backend
+- `generatePlan`, `coachChat` y `proactiveCoach` ya viven en backend.
+- Hay manejo de errores públicos más claros y rate limiting básico.
+- El prompt de generación ya está alineado con sesiones múltiples por día y diferencia correctamente entre sesiones con GPS y sin GPS.
+- El chat IA ya tiene acceso al plan cercano, eventos objetivo, perfil biométrico, último check-in y preferencias activas del atleta.
+- Falta endurecer seguridad para producción con Auth/App Check y reglas de consumo por usuario.
 
-### Baja Prioridad (Experiencia Visual)
-- **Widgets Nativos (iOS/Android)**: Desarrollar widgets para la pantalla de inicio del móvil que muestren el progreso semanal o el próximo entrenamiento programado, manteniendo GoalsApp siempre visible para el usuario.
+### Tracker y actividad
+- El tracker registra distancia, ruta, tiempo, calorías y ritmos.
+- Se corrigió el cálculo del ritmo medio para evitar usar tiempos desfasados y se filtró parte del ruido del GPS.
+- La frecuencia cardiaca sigue mockeada; no hay integración real con Apple Health / Google Fit.
 
-*Nota: La gestión de Múltiples "Goals" ya está cubierta por la arquitectura actual de generación de planes.*
+### Producto y UX
+- Existen rachas, resumen semanal y race week.
+- Hay importación/exportación de calendario.
+- Persisten mejoras pendientes en copy y localización completa de pantallas.
 
-## 6. IA en Producción: cómo ofrecer IA al usuario final sin pedirle su API key
+## Cómo arrancar
+- App móvil:
+  - `npx expo start -c`
+- Para probar fuera de casa con Expo Go:
+  - `npx expo start --tunnel`
+- Functions:
+  - `npm install --prefix functions`
+  - `npm run deploy --prefix functions`
 
-### Estado actual
-- Hoy GoalsApp funciona con un enfoque **BYOK** (`Bring Your Own Key`): la app usa una API key de Gemini guardada en el dispositivo o en `.env` local.
-- Esto es válido para desarrollo y testing, pero **no es la solución correcta para usuario final** porque mete fricción en onboarding y porque una key enviada desde cliente móvil/web no es un secreto real.
+## Prioridades del próximo sprint
+- Añadir autenticación real y App Check al backend IA.
+- Decidir el destino de `temp_app/`.
+- Terminar la limpieza de i18n en pantallas restantes.
+- Mejorar rendimiento del historial si crece el volumen de sesiones.
+- Evaluar background location y estrategia de builds para salidas reales largas.
 
-### Cómo debe funcionar en producto real
-- El usuario final **no debe meter ninguna API key**.
-- La app móvil debe hablar con **tu propio backend**.
-- Ese backend llama a Gemini usando **tu credencial privada en servidor**.
-- La app nunca ve la key real del proveedor.
+## Siguiente fase propuesta: Coach definitivo
+- Convertir el coach en un sistema de alto contexto que unifique `generatePlan`, `coachChat` y `proactiveCoach` sobre una misma visión del atleta.
+- Crear un `context builder` compartido con perfil, eventos, check-ins, preferencias activas, historial reciente y carga acumulada.
+- Endurecer prompts y guardrails para nutrición, suplementos, hidratación, composición corporal y recomendaciones sensibles.
+- Mejorar la lógica de modificación del calendario para que cualquier `PLAN_UPDATE` revise siempre semana afectada, objetivos cercanos, fatiga, disponibilidad real y tipo de sesión.
+- Evaluar si conviene añadir una capa de planificación intermedia antes de aplicar cambios para acercarse más a un agente IA especializado.
 
-### Arquitectura recomendada
-1. La app envía una petición autenticada a un endpoint tuyo, por ejemplo:
-   - `POST /ai/generate-plan`
-   - `POST /ai/chat`
-   - `POST /ai/proactive-coach`
-2. Tu backend valida:
-   - usuario autenticado
-   - límites de uso
-   - plan gratuito o premium
-   - rate limiting / abuso
-3. El backend llama a Gemini con tu key privada o con credenciales de servidor.
-4. El backend devuelve a la app solo la respuesta final.
+## TODO consolidado
 
-### Qué tienes que pagar realmente
-- No necesitas una "mega API para aplicaciones" distinta.
-- Lo normal es:
-  - **pagar tú el uso de Gemini** por tokens / peticiones
-  - **cobrar al usuario** mediante suscripción, límites mensuales o freemium
-- Además del coste del modelo, tendrás un coste pequeño de infraestructura de backend.
-- Para un MVP, el coste del backend suele ser mucho menor que el de la propia IA.
+### P0 - API y seguridad
+- Añadir autenticación real al backend IA antes de abrirlo a usuarios finales.
+- Añadir App Check o una capa equivalente para reducir abuso desde clientes no confiables.
+- Sustituir el rate limiting en memoria por una estrategia más robusta por usuario/dispositivo.
+- Definir el futuro del modo BYOK: desarrollo solamente o feature avanzada separada.
+- Revisar despliegue y observabilidad mínima de Functions: logs útiles, cuotas y alertas.
 
-### Opciones realistas
-- **Opción A - Backend ligero + Gemini API**:
-  - La más simple para lanzar.
-  - Puedes usar Firebase Functions, Cloud Run, Supabase Edge Functions, Vercel Functions o un backend Node sencillo.
-- **Opción B - Vertex AI en Google Cloud**:
-  - Más seria para producción y escalado.
-  - Mejor control de credenciales, permisos, observabilidad y seguridad.
-- **Opción C - BYOK como modo avanzado**:
-  - Puedes mantener la opción actual solo para power users o testers.
-  - No debería ser el flujo principal del producto.
+### P1 - Lógica de producto
+- Introducir un `sessionId` real en plan e historial para soportar perfectamente varias sesiones del mismo tipo el mismo día.
+- Revisar streaks y resumen semanal una vez exista `sessionId`, para que la adherencia por día/sesión quede totalmente exacta.
+- Validar en uso real que las nuevas preferencias (`AM/PM`, tiempo diario, descanso preferido) mejoran el plan y no generan dobles sesiones poco realistas.
+- Decidir si el usuario podrá editar también esas preferencias desde perfil además del modal previo a generar.
 
-### Recomendación para GoalsApp
-- Para el siguiente salto de producto, lo más sensato es:
-  - mover `generate-plan` y `chat` a backend
-  - dejar la app sin pedir API key al usuario
-  - ofrecer IA incluida en el producto con límites
-- Modelo recomendado:
-  - gratis con uso limitado
-  - premium con más generaciones, más mensajes y coach proactivo
+### P1 - Tracker y datos de actividad
+- Implementar background location robusto para salidas largas con móvil bloqueado.
+- Definir política de guardado final de actividades cortas según tipo de sesión y uso real.
+- Integrar frecuencia cardiaca y actividad real con Apple Health / Google Fit en lugar del mock actual.
+- Revisar cómo representar visualmente días con varias sesiones en Dashboard y Calendar cuando haya más volumen de uso.
 
-### Riesgos que resuelve este cambio
-- elimina la fricción de pedir API key en onboarding
-- evita filtraciones de credenciales del proveedor
-- permite controlar costes y abuso
-- te deja cambiar de modelo o proveedor sin tocar la app
-- abre la puerta a monetizar de forma seria
+### P2 - UX e internacionalización
+- Terminar la limpieza de textos hardcodeados en español.
+- Revisar consistencia de copies, etiquetas y mensajes cortos en los 5 idiomas.
+- Mostrar un resumen visible de preferencias de generación en el Dashboard para que el usuario vea con qué reglas va a crear el plan.
 
-## 7. Roadmap Priorizado
+### P2 - Deuda técnica
+- Decidir si `temp_app/` se elimina, se renombra o se documenta claramente.
+- Revisar `HistoryScreen` para evitar problemas de rendimiento con mapas embebidos cuando el historial crezca.
+- Valorar una caché y rehidratación de datos más fina para reducir lecturas SQLite repetidas en varias pantallas.
 
-### Now
-- **Coach Proactivo**
-- **Adherencia / progreso visible**
-- **Notificaciones locales inteligentes**
-- **Consistencia de datos del perfil / check-in / plan**
-- **Reducir fricción de la API key**
-
-### Next
-- **Integración real con Health / Fit**
-- **Resúmenes semanales**
-- **Modo objetivo / race week**
-- **Gamificación con sentido**
-
-### Later
-- **Widgets**
-- **Múltiples goals avanzados**
-- **Exportaciones más sofisticadas**
-- **Sharing social**
+### P3 - Backlog de producto
+- Notificaciones locales más inteligentes y sostenibles en el tiempo.
+- Resúmenes semanales más ricos y mejor adherencia visual.
+- Gamificación más profunda con sentido, no solo streaks.
+- Integración real con Health / Fit.
+- Widgets.
+- Sharing social.
+- Soporte más serio para Apple Watch cuando exista estrategia nativa real.

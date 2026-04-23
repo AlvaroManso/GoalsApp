@@ -7,8 +7,8 @@ Desarrollo de una aplicación para "atleta híbrido" desarrollada en Windows par
 * **Framework:** React Native con Expo SDK 50+.
 * **Lenguaje:** TypeScript (Tipado estricto obligatorio).
 * **Base de Datos:** SQLite (`expo-sqlite`) para almacenamiento local robusto.
-* **Seguridad:** API Key guardada estrictamente en `expo-secure-store`. Prohibido usar texto plano.
-* **Integraciones Core:** * `expo-location` (Tracking GPS en background).
+* **Seguridad:** Flujo principal por backend propio. Si se usa BYOK en desarrollo, la API key debe guardarse en `expo-secure-store`. No usar variables públicas `EXPO_PUBLIC_*` para secretos reales.
+* **Integraciones Core:** * `expo-location` (tracking GPS en primer plano hoy; background real pendiente de dev build/EAS).
   * **Aviso HealthKit:** Como la app se probará en Expo Go, las llamadas a Apple Health deben estar **mockeadas (simuladas)** en una clase `HealthServiceMock` para evitar crashes. La implementación real (`react-native-health`) se dejará comentada para compilarla en el futuro con EAS Build.
 * **Configuración (`app.json`):** Añadir los plugins y permisos necesarios para Location y Background Modes.
 
@@ -25,6 +25,8 @@ Desarrollo de una aplicación para "atleta híbrido" desarrollada en Windows par
 
 ### Fase 3: Motor de IA (Gemini) - [NÚCLEO CRÍTICO]
 * **Seguridad JSON (Sanitizer):** La IA de Gemini devuelve a menudo el texto envuelto en markdown. Debes implementar una función `parseAIResponse(text)` que use expresiones regulares (`Regex`) para eliminar ```json y ``` antes de hacer `JSON.parse()`. Esto es innegociable para evitar crashes.
+* **Pendiente de API/Seguridad:** Antes de producción, el backend IA debe incorporar autenticación real, App Check o protección equivalente y rate limiting más robusto que memoria por IP.
+* **Pendiente de modelo de datos:** Para soportar perfectamente varias sesiones del mismo tipo en el mismo día, hace falta un `sessionId` real en plan e historial.
 
 #### EL SYSTEM PROMPT MAESTRO (Configurar en el servicio de IA):
 "Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un plan semanal estructurado en formato JSON puro.

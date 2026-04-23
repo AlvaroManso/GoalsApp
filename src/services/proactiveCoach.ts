@@ -4,6 +4,8 @@ import { getDB } from '../db/database';
 import { Alert } from 'react-native';
 import { getActivities } from '../db/activities';
 import { hasAiBackend, proactiveCoachViaBackend } from './aiBackend';
+import { getEvents } from '../db/events';
+import { getSetting } from '../db/settings';
 import i18n from '../i18n';
 
 export const analyzeCheckinProactively = async (): Promise<boolean> => {
@@ -23,6 +25,8 @@ export const analyzeCheckinProactively = async (): Promise<boolean> => {
     // Get upcoming plan (next 7 days)
     const plan = getAllTrainingPlan();
     const futurePlan = plan.filter(p => p.date && p.date >= today).slice(0, 7);
+    const events = getEvents().filter((event) => event.date >= today);
+    const profile = db.getFirstSync<any>('SELECT * FROM UserProfile ORDER BY id DESC LIMIT 1');
     
     if (futurePlan.length === 0) return false;
 
@@ -41,6 +45,36 @@ export const analyzeCheckinProactively = async (): Promise<boolean> => {
         fatigue: checkin.fatigue,
         jointPain: checkin.jointPain,
         language: i18n.language,
+        eventsContext: events.map((event) => ({
+          type: event.type,
+          priority: event.priority,
+          date: event.date,
+          description: event.description,
+        })),
+        athleteContext: {
+          profile: profile ? {
+            age: profile.age,
+            weight: profile.weight,
+            maxHR: profile.maxHR,
+            restingHR: profile.restingHR,
+            gender: profile.gender,
+            fitnessLevel: profile.fitnessLevel,
+          } : undefined,
+          latestCheckin: {
+            date: checkin.date,
+            fatigue: checkin.fatigue,
+            jointPain: checkin.jointPain,
+          },
+          preferences: {
+            distanceUnit: getSetting('distanceUnit'),
+            weightUnit: getSetting('weightUnit'),
+            userPreferences: getSetting('user-preferences'),
+            sessionTimingPreference: getSetting('session-timing-preference'),
+            preferredRestDay: getSetting('preferred-rest-day'),
+            amTimeBudget: getSetting('am-time-budget'),
+            pmTimeBudget: getSetting('pm-time-budget'),
+          },
+        },
         planContext: planContextItems
       });
 
@@ -77,6 +111,30 @@ export const analyzeCheckinProactively = async (): Promise<boolean> => {
 Su plan para los próximos 7 días es:
 ${planContext}
 
+Sus próximos eventos son:
+${JSON.stringify(events)}
+
+Su perfil y preferencias activas son:
+${JSON.stringify({
+  profile: profile ? {
+    age: profile.age,
+    weight: profile.weight,
+    maxHR: profile.maxHR,
+    restingHR: profile.restingHR,
+    gender: profile.gender,
+    fitnessLevel: profile.fitnessLevel,
+  } : null,
+  preferences: {
+    distanceUnit: getSetting('distanceUnit'),
+    weightUnit: getSetting('weightUnit'),
+    userPreferences: getSetting('user-preferences'),
+    sessionTimingPreference: getSetting('session-timing-preference'),
+    preferredRestDay: getSetting('preferred-rest-day'),
+    amTimeBudget: getSetting('am-time-budget'),
+    pmTimeBudget: getSetting('pm-time-budget'),
+  }
+})}
+
 Debes decidir si es necesario reajustar el plan debido a la alta fatiga o dolor.
 Si crees que NO es necesario, devuelve texto vacío o "NO_CHANGE".
 Si crees que SÍ es necesario, DEBES DEVOLVER ESTRICTAMENTE un JSON (sin markdown) con esta estructura:
@@ -87,6 +145,10 @@ Si crees que SÍ es necesario, DEBES DEVOLVER ESTRICTAMENTE un JSON (sin markdow
     { "date": "${today}", "activityType": "Recovery", "durationMinutes": 30, "targetHRZone": "Z1", "coachNotes": "[Notas en el idioma '${i18n.language}']", "requiresGPS": false }
   ]
 }
+REGLAS:
+- Prioriza reducir carga, impacto y complejidad.
+- No añadas sesiones GPS si el objetivo es descargar fatiga.
+- Si el día ya tiene varias sesiones, puedes simplificar una o varias, pero mantén fechas existentes.
 No devuelvas NADA MÁS que el JSON si decides actualizar.`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;

@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { getAllTrainingPlan, PlanSession } from '../db/trainingPlan';
 import { getEvents, AppEvent } from '../db/events';
+import { getActivities } from '../db/activities';
 import { TabScreenProps } from '../types/navigation';
 import { exportPlanToICS } from '../utils/icsExport';
 import { importPlanFromICS } from '../utils/icsImport';
@@ -25,13 +26,23 @@ export default function CalendarScreen({ navigation }: Props) {
   const [events, setEvents] = useState<AppEvent[]>([]);
   const [markedDates, setMarkedDates] = useState<any>({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [completedSessionKeys, setCompletedSessionKeys] = useState<string[]>([]);
+
+  const getSessionCompletionKey = (date: string, activityType: string) =>
+    `${date}::${activityType.trim().toLowerCase()}`;
 
   const loadData = useCallback(() => {
     const fullPlan = getAllTrainingPlan();
     const allEvents = getEvents();
+    const history = getActivities();
 
     setPlan(fullPlan);
     setEvents(allEvents);
+    setCompletedSessionKeys(
+      history
+        .filter(act => Boolean(act.type))
+        .map(act => getSessionCompletionKey(act.date.split('T')[0], act.type || 'Running'))
+    );
 
     const marks: Record<string, any> = {};
 
@@ -63,10 +74,10 @@ export default function CalendarScreen({ navigation }: Props) {
     return unsubscribe;
   }, [navigation, loadData]);
 
-  const getSessionForDate = (date: string) => plan.find(p => p.date === date);
+  const getSessionsForDate = (date: string) => plan.filter(p => p.date === date);
   const getEventsForDate = (date: string) => events.filter(e => e.date === date);
 
-  const selectedSession = getSessionForDate(selectedDate);
+  const selectedSessions = getSessionsForDate(selectedDate);
   const selectedEvents = getEventsForDate(selectedDate);
 
   return (
@@ -135,52 +146,77 @@ export default function CalendarScreen({ navigation }: Props) {
           </View>
         )}
 
-        {selectedSession ? (
-          <View className="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-sm mb-6">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-white font-bold text-lg">{selectedSession.activityType}</Text>
-              {selectedSession.durationMinutes > 0 && (
-                <Text className="text-indigo-400 font-bold">{selectedSession.durationMinutes} min</Text>
-              )}
-            </View>
-            {selectedSession.targetHRZone && (
-              <Text className="text-blue-400 font-semibold mb-2">Zona: {selectedSession.targetHRZone}</Text>
-            )}
-            <Text className="text-gray-300 leading-5 mb-4">{selectedSession.coachNotes}</Text>
+        {selectedSessions.length > 0 ? (
+          <View className="mb-6">
+            {selectedSessions.map((selectedSession, index) => {
+              const isRest = selectedSession.activityType.toLowerCase() === 'rest';
+              const isCompleted = completedSessionKeys.includes(
+                getSessionCompletionKey(selectedSession.date!, selectedSession.activityType)
+              );
 
-            {selectedDate === new Date().toISOString().split('T')[0] && selectedSession.activityType.toLowerCase() !== 'rest' && (
-              <TouchableOpacity
-                className="bg-indigo-600 py-3 rounded-xl items-center flex-row justify-center mt-2 shadow-sm shadow-indigo-500/30"
-                onPress={() => {
-                  try {
-                    const parent = navigation.getParent();
-                    if (parent) {
-                      parent.navigate('Tracker', {
-                        activityType: selectedSession.activityType,
-                        requiresGPS: (selectedSession as PlanSession).requiresGPS,
-                        durationMinutes: selectedSession.durationMinutes,
-                        targetHRZone: selectedSession.targetHRZone,
-                        coachNotes: selectedSession.coachNotes,
-                        planDate: selectedSession.date
-                      });
-                    } else {
-                      (navigation as any).navigate('Tracker', {
-                        activityType: selectedSession.activityType,
-                        requiresGPS: (selectedSession as PlanSession).requiresGPS,
-                        durationMinutes: selectedSession.durationMinutes,
-                        targetHRZone: selectedSession.targetHRZone,
-                        coachNotes: selectedSession.coachNotes,
-                        planDate: selectedSession.date
-                      });
-                    }
-                  } catch (e) {
-                    console.error('Navigation error:', e);
-                  }
-                }}
-              >
-                <Text className="text-white font-bold text-center text-base">{t('calendarScreen.goToTracker')}</Text>
-              </TouchableOpacity>
-            )}
+              return (
+                <View
+                  key={`${selectedSession.date}-${selectedSession.activityType}-${index}`}
+                  className={`p-4 rounded-xl border shadow-sm mb-4 ${
+                    isCompleted ? 'bg-green-950/20 border-green-800' : 'bg-gray-800 border-gray-700'
+                  }`}
+                >
+                  <View className="flex-row justify-between items-center mb-2">
+                    <View className="flex-row items-center flex-1 mr-3">
+                      {isCompleted ? (
+                        <View className="bg-green-900/40 rounded-full w-6 h-6 items-center justify-center mr-2">
+                          <Text className="text-green-400 text-xs">✓</Text>
+                        </View>
+                      ) : null}
+                      <Text className="text-white font-bold text-lg flex-1">{selectedSession.activityType}</Text>
+                    </View>
+                    <View className="items-end">
+                      {selectedSession.durationMinutes > 0 && (
+                        <Text className="text-indigo-400 font-bold">{selectedSession.durationMinutes} min</Text>
+                      )}
+                      {!isRest && (
+                        <Text className="text-xs text-gray-400 mt-1">
+                          {selectedSession.requiresGPS ? 'Tracker GPS' : 'Tracker sin GPS'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {selectedSession.targetHRZone && (
+                    <Text className="text-blue-400 font-semibold mb-2">Zona: {selectedSession.targetHRZone}</Text>
+                  )}
+                  <Text className="text-gray-300 leading-5 mb-4">{selectedSession.coachNotes}</Text>
+
+                  {selectedDate === new Date().toISOString().split('T')[0] && !isRest && !isCompleted && (
+                    <TouchableOpacity
+                      className="bg-indigo-600 py-3 rounded-xl items-center flex-row justify-center mt-2 shadow-sm shadow-indigo-500/30"
+                      onPress={() => {
+                        try {
+                          const parent = navigation.getParent();
+                          const trackerParams = {
+                            activityType: selectedSession.activityType,
+                            requiresGPS: (selectedSession as PlanSession).requiresGPS,
+                            durationMinutes: selectedSession.durationMinutes,
+                            targetHRZone: selectedSession.targetHRZone,
+                            coachNotes: selectedSession.coachNotes,
+                            planDate: selectedSession.date
+                          };
+                          if (parent) {
+                            parent.navigate('Tracker', trackerParams);
+                          } else {
+                            (navigation as any).navigate('Tracker', trackerParams);
+                          }
+                        } catch (e) {
+                          console.error('Navigation error:', e);
+                        }
+                      }}
+                    >
+                      <Text className="text-white font-bold text-center text-base">{t('calendarScreen.goToTracker')}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
           </View>
         ) : (
           <View className="bg-gray-800 p-6 rounded-xl items-center justify-center border border-gray-700 border-dashed">

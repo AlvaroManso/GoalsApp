@@ -6,6 +6,7 @@ import { getActivities, Activity } from '../db/activities';
 import { useTranslation } from 'react-i18next';
 import { getSetting } from '../db/settings';
 import { formatDistance, formatPace } from '../utils/units';
+import i18n from '../i18n';
 
 type Props = TabScreenProps<'History'>;
 

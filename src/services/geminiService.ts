@@ -3,15 +3,27 @@ import { parseAIResponse } from '../utils/sanitizer';
 import { generatePlanViaBackend, hasAiBackend } from './aiBackend';
 import i18n from '../i18n';
 
-const SYSTEM_PROMPT = `Actúa como un Entrenador de Atletismo de Élite, Fisiólogo y Nutricionista. Genera un macrociclo de entrenamiento para las próximas 52 semanas (1 año completo) estructurado en formato JSON puro.
+const SYSTEM_PROMPT = `Actúa como un entrenador de atletismo de élite, fisiólogo y nutricionista. Genera un macrociclo de 52 semanas estructurado en JSON puro.
 REGLAS FISIOLÓGICAS INQUEBRANTABLES:
-1. Método 80/20: El 80% del volumen de carrera debe ser en Z1/Z2 (Conversacional). Solo el 20% en Z4/Z5 (Series).
-2. Fatiga Cruzada: NUNCA programes una Tirada Larga de carrera el día posterior a un entrenamiento pesado de Fuerza o Hyrox.
-3. Tapering: Si hay un evento Prioridad A programado, reduce el volumen de entrenamiento un 30-50% progresivamente las 2 semanas previas.
-4. Nutrición: Para sesiones de duración > 90 minutos, incluye una nota: 'Ingerir 40-60g CH/hora y 500ml agua con electrolitos/hora'.
-5. Equipamiento: Si el usuario indica que dispone de equipamiento de interior (cinta, rodillo/bici, piscina), siéntete libre de programar sesiones específicas usando ese equipo, especialmente útil para recuperación o si la fatiga de impacto es alta.
-FORMATO JSON REQUERIDO: Devuelve estrictamente un array de objetos. Estructura para cada día del año: 'weekNumber' (number 1-52), 'dayOfWeek' (number 1-7), 'activityType' (string: Run, Treadmill, Cycling, Strength, Rest, Crosstraining, Swimming), 'durationMinutes' (number), 'targetHRZone' (string), 'coachNotes' (string) y 'requiresGPS' (boolean). El campo 'requiresGPS' debe ser true SÓLO si la actividad requiere medir distancia al aire libre (ej: Run, Cycling). Para entrenamientos indoor (Treadmill, Rodillo, Piscina, Fuerza, Descanso), 'requiresGPS' DEBE SER false para no gastar batería.
-Deben ser exactamente 364 objetos (52 semanas * 7 días).`;
+1. Método 80/20: el 80% del volumen de carrera debe ser en Z1/Z2 conversacional. Solo el 20% en Z4/Z5.
+2. Fatiga cruzada: nunca programes una tirada larga de carrera el día posterior a una sesión pesada de fuerza o Hyrox.
+3. Tapering: si hay un evento prioridad A, reduce el volumen progresivamente un 30-50% en las 2 semanas previas.
+4. Nutrición: para sesiones de más de 90 minutos, incluye una nota breve sobre carbohidratos e hidratación.
+5. Equipamiento: si el usuario tiene material indoor, úsalo de forma inteligente para recuperación, control de impacto o días de mala climatología.
+REGLAS DE ESTRUCTURA:
+1. Devuelve estrictamente un array JSON, sin markdown ni texto adicional.
+2. Cada objeto representa UNA sesión concreta, no un día completo.
+3. Campos obligatorios: 'weekNumber' (1-52), 'dayOfWeek' (1-7, donde 1 = lunes y 7 = domingo), 'activityType', 'durationMinutes', 'targetHRZone', 'coachNotes', 'requiresGPS'.
+4. Debe haber cobertura completa de los 364 días del macrociclo: cada combinación weekNumber + dayOfWeek debe aparecer al menos una vez.
+5. Si un día tiene doble sesión, devuelve varios objetos consecutivos con el mismo weekNumber y dayOfWeek.
+6. Si un día tiene más de una sesión, no uses 'Rest' en ese mismo día.
+7. Usa 'Rest' solo en días de descanso completo.
+REGLAS DE TRACKER:
+1. 'requiresGPS' debe ser true solo si esa sesión necesita medir distancia al aire libre.
+2. 'requiresGPS' debe ser false para fuerza, cinta, bici estática, rodillo, piscina, movilidad, recuperación, descanso y trabajo indoor.
+3. Si propones doble sesión, intenta que tenga sentido para la app: una principal y otra complementaria, o una GPS y otra sin GPS.
+TIPOS RECOMENDADOS:
+Run, Trail, Cycling, Treadmill, Strength, Hyrox, Crosstraining, Swimming, Mobility, Recovery, Rest.`;
 
 export interface PlanSession {
   weekNumber: number;
@@ -35,8 +47,55 @@ interface GeneratePlanParams {
   strengthAvailability: number;
   equipment: string[];
   userPreferences?: string;
+  sessionTimingPreference?: string;
+  preferredRestDay?: string;
+  amTimeBudget?: string;
+  pmTimeBudget?: string;
   onProgress?: (progress: number) => void;
 }
+
+const gpsActivities = new Set(['run', 'trail', 'cycling', 'bike outdoor', 'outdoor ride']);
+
+const inferRequiresGPS = (activityType?: string): boolean => {
+  return gpsActivities.has((activityType || '').trim().toLowerCase());
+};
+
+const normalizeGeneratedPlan = (plan: unknown): PlanSession[] => {
+  if (!Array.isArray(plan)) {
+    throw new Error('El plan generado no es un array válido.');
+  }
+
+  const normalized = plan
+    .map((session: any, index) => ({
+      weekNumber: Number(session?.weekNumber),
+      dayOfWeek: Number(session?.dayOfWeek),
+      activityType: typeof session?.activityType === 'string' && session.activityType.trim()
+        ? session.activityType.trim()
+        : 'Rest',
+      durationMinutes: Math.max(0, Math.round(Number(session?.durationMinutes) || 0)),
+      targetHRZone: typeof session?.targetHRZone === 'string' ? session.targetHRZone.trim() : '',
+      coachNotes: typeof session?.coachNotes === 'string' ? session.coachNotes.trim() : '',
+      requiresGPS: typeof session?.requiresGPS === 'boolean'
+        ? session.requiresGPS
+        : inferRequiresGPS(session?.activityType),
+      __index: index,
+    }))
+    .filter((session) => Number.isFinite(session.weekNumber) && Number.isFinite(session.dayOfWeek))
+    .filter((session) => session.weekNumber >= 1 && session.weekNumber <= 52 && session.dayOfWeek >= 1 && session.dayOfWeek <= 7)
+    .sort((a, b) => {
+      if (a.weekNumber !== b.weekNumber) return a.weekNumber - b.weekNumber;
+      if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek;
+      return a.__index - b.__index;
+    })
+    .map(({ __index, ...session }) => session as PlanSession);
+
+  const uniqueDayCount = new Set(normalized.map((session) => `${session.weekNumber}-${session.dayOfWeek}`)).size;
+  if (uniqueDayCount !== 364) {
+    throw new Error(`El plan no cubre exactamente los 364 días requeridos. Días detectados: ${uniqueDayCount}.`);
+  }
+
+  return normalized;
+};
 
 export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<PlanSession[]> => {
   try {
@@ -53,6 +112,10 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
         strengthAvailability: params.strengthAvailability,
         equipment: params.equipment,
         userPreferences: params.userPreferences,
+        sessionTimingPreference: params.sessionTimingPreference,
+        preferredRestDay: params.preferredRestDay,
+        amTimeBudget: params.amTimeBudget,
+        pmTimeBudget: params.pmTimeBudget,
         language: i18n.language,
       });
       if (params.onProgress) params.onProgress(100);
@@ -67,11 +130,22 @@ export const generateWeeklyPlan = async (params: GeneratePlanParams): Promise<Pl
     const eventsList = params.events.map(e => `${e.type} (Prioridad ${e.priority}) el ${e.date}`).join(', ');
 
     const dynamicPrompt = `Atleta de ${params.age} años. Género: ${params.gender}. FC Reposo: ${params.restingHR}. Fatiga: ${params.fatigue}/10. Dolor articular: ${params.jointPain}/10.
-Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${params.runAvailability} run, ${params.strengthAvailability} fuerza.
+Eventos próximos en el año: [${eventsList || 'Ninguno'}]. Disponibilidad semanal: ${params.runAvailability} sesiones principales de carrera/nado/bici, ${params.strengthAvailability} de fuerza.
 Equipamiento disponible en el sitio: [${params.equipment.length > 0 ? params.equipment.join(', ') : 'Ninguno, solo exterior'}].
 ${params.userPreferences ? `Preferencias y condiciones del usuario: "${params.userPreferences}"` : ''}
-Genera el plan de entrenamiento macrociclo de 52 semanas en JSON. 
-IMPORTANTE: El campo 'coachNotes' DEBE estar escrito en el idioma con código '${i18n.language}'.`;
+Genera el plan de entrenamiento macrociclo de 52 semanas en JSON.
+IMPORTANTE:
+- El campo 'coachNotes' DEBE estar escrito en el idioma con código '${i18n.language}'.
+- La app diferencia entre sesiones con tracker GPS y sesiones sin GPS.
+- Puedes programar doble sesión el mismo día si tiene sentido fisiológico y logístico.
+- Si generas doble sesión el mismo día, devuelve varios objetos consecutivos con el mismo weekNumber y dayOfWeek.
+- Preferencia de franja horaria: ${params.sessionTimingPreference || 'sin preferencia'}.
+- Día de descanso preferido: ${params.preferredRestDay || 'sin preferencia'}.
+- Tiempo disponible AM: ${params.amTimeBudget || 'sin especificar'}.
+- Tiempo disponible PM: ${params.pmTimeBudget || 'sin especificar'}.
+- Si AM o PM es 0 min, evita programar sesiones en esa franja.
+- Si ambos bloques tienen poco tiempo, evita dobles sesiones salvo que sea muy justificable.
+- No inventes campos extra.`;
 
     console.log('Enviando prompt a Gemini:', dynamicPrompt);
 
@@ -163,11 +237,7 @@ IMPORTANTE: El campo 'coachNotes' DEBE estar escrito en el idioma con código '$
     if (params.onProgress) params.onProgress(98); // Parseando
     
     // Parseamos la respuesta usando nuestro sanitizador robusto
-    const plan = parseAIResponse(responseText);
-    
-    if (!Array.isArray(plan)) {
-      throw new Error('El plan generado no es un array válido.');
-    }
+    const plan = normalizeGeneratedPlan(parseAIResponse(responseText));
 
     if (params.onProgress) params.onProgress(100); // Terminado
 

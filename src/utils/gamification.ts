@@ -1,12 +1,45 @@
 import { Activity } from '../db/activities';
+import { PlanSession } from '../db/trainingPlan';
 
-export const calculateStreak = (activities: Activity[]): number => {
+const getSessionCompletionKey = (date: string, activityType: string) =>
+  `${date}::${activityType.trim().toLowerCase()}`;
+
+export const calculateStreak = (activities: Activity[], planSessions?: PlanSession[]): number => {
   if (!activities || activities.length === 0) return 0;
 
-  // Extract unique dates of completed workouts
-  const uniqueDates = new Set(
-    activities.map(act => act.date.split('T')[0])
-  );
+  let uniqueDates: Set<string>;
+
+  if (planSessions && planSessions.length > 0) {
+    const completedSessionKeys = new Set(
+      activities
+        .filter(act => Boolean(act.type))
+        .map(act => getSessionCompletionKey(act.date.split('T')[0], act.type || 'Running'))
+    );
+
+    const groupedByDate = new Map<string, PlanSession[]>();
+    planSessions.forEach(session => {
+      if (!session.date || session.activityType.toLowerCase() === 'rest') return;
+      const list = groupedByDate.get(session.date) || [];
+      list.push(session);
+      groupedByDate.set(session.date, list);
+    });
+
+    uniqueDates = new Set(
+      Array.from(groupedByDate.entries())
+        .filter(([, sessions]) =>
+          sessions.every(session => completedSessionKeys.has(getSessionCompletionKey(session.date!, session.activityType)))
+        )
+        .map(([date]) => date)
+    );
+  } else {
+    // Extract unique dates of completed workouts
+    uniqueDates = new Set(
+      activities.map(act => act.date.split('T')[0])
+    );
+  }
+
+  // Rebuild from unique calendar days so late manual completions extend the streak correctly.
+  uniqueDates = new Set(Array.from(uniqueDates));
 
   const sortedDates = Array.from(uniqueDates).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
 
@@ -70,13 +103,17 @@ export const getLastWeekSummary = (activities: Activity[]) => {
     distanceKm: 0,
     durationMinutes: 0,
     calories: 0,
-    hasData: lastWeekActivities.length > 0
+    hasData: lastWeekActivities.length > 0,
+    hasDistance: false,
   };
 
   lastWeekActivities.forEach(act => {
     summary.distanceKm += act.distanceKm || 0;
     summary.durationMinutes += act.durationMinutes || 0;
     summary.calories += act.calories || 0;
+    if ((act.distanceKm || 0) > 0) {
+      summary.hasDistance = true;
+    }
   });
 
   // Round distance to 1 decimal
