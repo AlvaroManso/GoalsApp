@@ -41,6 +41,12 @@
 - **Tracker Inteligente (requiresGPS)**: La IA determina si una actividad necesita GPS o no. El Tracker adapta su interfaz dinámicamente, ocultando la distancia y los ritmos para actividades indoor o de fuerza, y ahorrando batería al no solicitar ubicación.
 - **Calendario Portátil**: El usuario puede exportar e importar sesiones mediante `.ics`.
 
+### 7. Próxima fase propuesta: Coach definitivo
+- **Contexto unificado del atleta**: Unificar `generatePlan`, `coachChat` y `proactiveCoach` para que lean la misma foto del atleta: perfil, eventos, check-ins, preferencias activas e historial reciente.
+- **Planificación más inteligente**: Hacer que cualquier modificación del calendario revise semana afectada, objetivos próximos, disponibilidad AM/PM, recuperación y tipo de sesión antes de proponer cambios.
+- **Guardrails de salud y nutrición**: Endurecer el comportamiento del coach para nutrición, hidratación, suplementos, pérdida de peso y recomendaciones sensibles.
+- **Base para un agente IA real**: Valorar una capa previa de razonamiento/planificación antes de emitir `PLAN_UPDATE`, acercando el sistema a un coach especializado más consistente.
+
 ## 🔧 Tecnologías Usadas
 - **React Native (Expo)**
 - **NativeWind (Tailwind CSS)**
@@ -96,6 +102,7 @@
 - Resúmenes semanales.
 - Modo objetivo / race week.
 - Gamificación con sentido.
+- Revisión completa del coach para llevarlo al "coach definitivo".
 
 ### Later
 - Widgets.
